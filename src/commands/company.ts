@@ -1,7 +1,10 @@
 import { Command } from "commander";
 import * as service from "../services/company.service.js";
+import * as industryService from "../services/industry.service.js";
+import * as nicheService from "../services/niche.service.js";
+import * as productService from "../services/product.service.js";
+import * as svcService from "../services/service.service.js";
 import { createCompanySchema } from "../types/company.types.js";
-import { statusEnum } from "../types/common.js";
 import { textInput, selectInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import { heading, success, label, createTable, noResults, error } from "../utils/format.js";
@@ -15,8 +18,6 @@ export function registerCompanyCommands(program: Command) {
     .command("add")
     .description("Add a new company")
     .option("--name <name>", "Company name")
-    .option("--industry <industry>", "Industry")
-    .option("--niche <niche>", "Niche")
     .option("--contact-name <name>", "Contact name")
     .option("--contact-email <email>", "Contact email")
     .option("--contact-phone <phone>", "Contact phone")
@@ -24,14 +25,9 @@ export function registerCompanyCommands(program: Command) {
     .option("--notes <notes>", "Notes")
     .action(async (opts) => {
       try {
-        const interactive = !opts.name && !opts.industry;
+        const interactive = !opts.name;
 
         const name = opts.name || (await textInput({ message: "Company name", required: true }));
-        const industry =
-          opts.industry || (await textInput({ message: "Industry", required: true }));
-        const niche = interactive
-          ? (await textInput({ message: "Niche (optional)" }))
-          : opts.niche;
         const contactName = interactive
           ? (await textInput({ message: "Contact name (optional)" }))
           : opts.contactName;
@@ -41,8 +37,6 @@ export function registerCompanyCommands(program: Command) {
 
         const input = createCompanySchema.parse({
           name,
-          industry,
-          niche: niche || undefined,
           contactName: contactName || undefined,
           contactEmail: contactEmail || undefined,
           contactPhone: opts.contactPhone,
@@ -57,8 +51,6 @@ export function registerCompanyCommands(program: Command) {
         heading("Company Created");
         label("ID", company.id);
         label("Name", company.name);
-        label("Industry", company.industry);
-        if (company.niche) label("Niche", company.niche);
       } catch (err) {
         if (isCancelError(err)) process.exit(0);
         throw err;
@@ -69,13 +61,11 @@ export function registerCompanyCommands(program: Command) {
   cmd
     .command("list")
     .description("List companies")
-    .option("--industry <industry>", "Filter by industry")
     .option("--status <status>", "Filter by status (active, inactive, archived)")
-    .option("--search <term>", "Search by name, industry, or niche")
+    .option("--search <term>", "Search by name")
     .action(async (opts) => {
       const companies = await withSpinner("Loading companies", () =>
         service.listCompanies({
-          industry: opts.industry,
           status: opts.status,
           search: opts.search,
         })
@@ -84,13 +74,11 @@ export function registerCompanyCommands(program: Command) {
       if (companies.length === 0) return noResults("companies");
 
       heading("Companies");
-      const table = createTable(["ID", "Name", "Industry", "Niche", "Status", "Created"]);
+      const table = createTable(["ID", "Name", "Status", "Created"]);
       for (const c of companies) {
         table.push([
           c.id,
           c.name,
-          c.industry,
-          c.niche ?? "—",
           c.status,
           formatDate(c.createdAt),
         ]);
@@ -111,8 +99,6 @@ export function registerCompanyCommands(program: Command) {
 
       heading(company.name);
       label("ID", company.id);
-      label("Industry", company.industry);
-      label("Niche", company.niche);
       label("Status", company.status);
       label("Contact", company.contactName);
       label("Email", company.contactEmail);
@@ -121,6 +107,42 @@ export function registerCompanyCommands(program: Command) {
       label("Notes", company.notes);
       label("Created", formatDate(company.createdAt));
       label("Updated", formatDate(company.updatedAt));
+
+      if (company.industries.length > 0) {
+        heading("Industries");
+        const table = createTable(["ID", "Name"]);
+        for (const i of company.industries) {
+          table.push([i.industryId, i.industryName]);
+        }
+        console.log(table.toString());
+      }
+
+      if (company.niches.length > 0) {
+        heading("Niches");
+        const table = createTable(["ID", "Name", "Industry"]);
+        for (const n of company.niches) {
+          table.push([n.nicheId, n.nicheName, n.industryName]);
+        }
+        console.log(table.toString());
+      }
+
+      if (company.products.length > 0) {
+        heading("Products");
+        const table = createTable(["ID", "Name", "Notes"]);
+        for (const p of company.products) {
+          table.push([p.productId, p.productName, p.notes ?? "—"]);
+        }
+        console.log(table.toString());
+      }
+
+      if (company.services.length > 0) {
+        heading("Services");
+        const table = createTable(["ID", "Name", "Notes"]);
+        for (const s of company.services) {
+          table.push([s.serviceId, s.serviceName, s.notes ?? "—"]);
+        }
+        console.log(table.toString());
+      }
     });
 
   // ── edit ───────────────────────────────────────────────
@@ -128,8 +150,6 @@ export function registerCompanyCommands(program: Command) {
     .command("edit <id>")
     .description("Edit a company")
     .option("--name <name>", "Company name")
-    .option("--industry <industry>", "Industry")
-    .option("--niche <niche>", "Niche")
     .option("--contact-name <name>", "Contact name")
     .option("--contact-email <email>", "Contact email")
     .option("--contact-phone <phone>", "Contact phone")
@@ -147,8 +167,6 @@ export function registerCompanyCommands(program: Command) {
         if (hasFlags) {
           updates = {};
           if (opts.name) updates.name = opts.name;
-          if (opts.industry) updates.industry = opts.industry;
-          if (opts.niche) updates.niche = opts.niche;
           if (opts.contactName) updates.contactName = opts.contactName;
           if (opts.contactEmail) updates.contactEmail = opts.contactEmail;
           if (opts.contactPhone) updates.contactPhone = opts.contactPhone;
@@ -161,15 +179,6 @@ export function registerCompanyCommands(program: Command) {
             initialValue: existing.name,
             required: true,
           });
-          const industry = await textInput({
-            message: "Industry",
-            initialValue: existing.industry,
-            required: true,
-          });
-          const niche = await textInput({
-            message: "Niche",
-            initialValue: existing.niche ?? "",
-          });
           const status = await selectInput({
             message: "Status",
             options: [
@@ -179,12 +188,7 @@ export function registerCompanyCommands(program: Command) {
             ],
           });
 
-          updates = {
-            name,
-            industry,
-            niche: niche || undefined,
-            status,
-          };
+          updates = { name, status };
         }
 
         const company = await withSpinner("Updating company", () =>
@@ -192,6 +196,152 @@ export function registerCompanyCommands(program: Command) {
         );
 
         success(`Company "${company.name}" updated.`);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
+    });
+
+  // ── assign-industry ────────────────────────────────────
+  cmd
+    .command("assign-industry <companyId>")
+    .description("Assign an industry to a company")
+    .option("--industry <industry>", "Industry ID or name")
+    .action(async (companyId: string, opts) => {
+      try {
+        const company = await service.getCompany(companyId);
+        if (!company) return error(`Company not found: ${companyId}`);
+
+        let industryId: string;
+        if (opts.industry) {
+          const ind = await industryService.getIndustry(opts.industry);
+          if (!ind) return error(`Industry not found: ${opts.industry}`);
+          industryId = ind.id;
+        } else {
+          const industries = await industryService.listIndustries({});
+          if (industries.length === 0) return error("No industries found. Create one first.");
+          industryId = await selectInput({
+            message: "Select industry",
+            options: industries.map((i) => ({ value: i.id, label: i.name })),
+          });
+        }
+
+        await withSpinner("Assigning industry", () =>
+          service.assignIndustry({ companyId: company.id, industryId })
+        );
+
+        success("Industry assigned to company.");
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
+    });
+
+  // ── assign-niche ───────────────────────────────────────
+  cmd
+    .command("assign-niche <companyId>")
+    .description("Assign a niche to a company")
+    .option("--niche <niche>", "Niche ID or name")
+    .action(async (companyId: string, opts) => {
+      try {
+        const company = await service.getCompany(companyId);
+        if (!company) return error(`Company not found: ${companyId}`);
+
+        let nicheId: string;
+        if (opts.niche) {
+          const n = await nicheService.getNiche(opts.niche);
+          if (!n) return error(`Niche not found: ${opts.niche}`);
+          nicheId = n.id;
+        } else {
+          const niches = await nicheService.listNiches({});
+          if (niches.length === 0) return error("No niches found. Create one first.");
+          nicheId = await selectInput({
+            message: "Select niche",
+            options: niches.map((n) => ({ value: n.id, label: `${n.name} (${n.industryName})` })),
+          });
+        }
+
+        await withSpinner("Assigning niche", () =>
+          service.assignNiche({ companyId: company.id, nicheId })
+        );
+
+        success("Niche assigned to company.");
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
+    });
+
+  // ── assign-product ─────────────────────────────────────
+  cmd
+    .command("assign-product <companyId>")
+    .description("Assign a product to a company")
+    .option("--product <product>", "Product ID or name")
+    .option("--notes <notes>", "Notes")
+    .action(async (companyId: string, opts) => {
+      try {
+        const company = await service.getCompany(companyId);
+        if (!company) return error(`Company not found: ${companyId}`);
+
+        let productId: string;
+        if (opts.product) {
+          const p = await productService.getProduct(opts.product);
+          if (!p) return error(`Product not found: ${opts.product}`);
+          productId = p.id;
+        } else {
+          const products = await productService.listProducts({});
+          if (products.length === 0) return error("No products found. Create one first.");
+          productId = await selectInput({
+            message: "Select product",
+            options: products.map((p) => ({ value: p.id, label: p.name })),
+          });
+        }
+
+        const notes = opts.product ? opts.notes : (await textInput({ message: "Notes (optional)" }));
+
+        await withSpinner("Assigning product", () =>
+          service.assignProduct({ companyId: company.id, productId, notes: notes || undefined })
+        );
+
+        success("Product assigned to company.");
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
+    });
+
+  // ── assign-service ─────────────────────────────────────
+  cmd
+    .command("assign-service <companyId>")
+    .description("Assign a service to a company")
+    .option("--service <service>", "Service ID or name")
+    .option("--notes <notes>", "Notes")
+    .action(async (companyId: string, opts) => {
+      try {
+        const company = await service.getCompany(companyId);
+        if (!company) return error(`Company not found: ${companyId}`);
+
+        let serviceId: string;
+        if (opts.service) {
+          const s = await svcService.getService(opts.service);
+          if (!s) return error(`Service not found: ${opts.service}`);
+          serviceId = s.id;
+        } else {
+          const services = await svcService.listServices({});
+          if (services.length === 0) return error("No services found. Create one first.");
+          serviceId = await selectInput({
+            message: "Select service",
+            options: services.map((s) => ({ value: s.id, label: s.name })),
+          });
+        }
+
+        const notes = opts.service ? opts.notes : (await textInput({ message: "Notes (optional)" }));
+
+        await withSpinner("Assigning service", () =>
+          service.assignService({ companyId: company.id, serviceId, notes: notes || undefined })
+        );
+
+        success("Service assigned to company.");
       } catch (err) {
         if (isCancelError(err)) process.exit(0);
         throw err;

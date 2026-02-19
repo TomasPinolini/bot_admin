@@ -1,0 +1,91 @@
+Industria,Nicho,Productos y Servicios Comunes
+Barberías y Peluquerías,Barberías de autor / Urbanas,Corte de cabello, degradado (fade), perfilado de barba
+Barberías y Peluquerías,Peluquerías infantiles,Cortes para niños, peinados para eventos escolares
+Barberías y Peluquerías,Coloración técnica y Balayage,Tintura, decoloración, tratamientos de keratina
+Barberías y Peluquerías,Extensiones y Cortinas,Colocación de extensiones de pelo natural, service
+Barberías y Peluquerías,Peluquerías caninas,Corte higiénico, baño, despeje de almohadillas
+Gastronomía,Hamburgueserías artesanales,Combos de hamburguesas, papas fritas, bebidas
+Gastronomía,Pizzerías de masa madre,Pizzas gourmet, faina, empanadas artesanales
+Gastronomía,Pastelería de diseño (Candy Bar),Tortas personalizadas, cupcakes, mesas dulces
+Gastronomía,Viandas saludables / Keto,Menú semanal, dietas personalizadas, viandas congeladas
+Gastronomía,Cervecerías y Bares de barrio,Reserva de mesas, recarga de growlers, happy hour
+Medicina y Salud,Centros odontológicos,Limpieza dental, ortodoncia, blanqueamiento
+Medicina y Salud,Consultorios de psicología,Sesiones presenciales y online, terapia de pareja
+Medicina y Salud,Centros de kinesiología,Rehabilitación física, masajes descontracturantes
+Medicina y Salud,Laboratorios de análisis clínicos,Extracción de sangre, entrega de resultados digitales
+Medicina y Salud,Centros de estética (Depilación láser),Soprano Ice, limpiezas faciales, rellenos con ácido
+Bienestar y Fitness,Gimnasios de CrossFit / Box,Clases grupales, abonos mensuales, pases diarios
+Bienestar y Fitness,Estudios de Yoga y Pilates,Clases de Hatha Yoga, Reformer, meditación
+Bienestar y Fitness,Personal Trainers,Entrenamiento personalizado, planes de rutina por PDF
+Bienestar y Fitness,Nutricionistas,Planes de alimentación, medición de masa corporal
+Bienestar y Fitness,Tiendas de suplementos,Proteínas, creatina, quemadores de grasa
+Indumentaria y Moda,Showrooms de ropa femenina,Vestidos, blusas, asesoría de imagen
+Indumentaria y Moda,Indumentaria deportiva,Leggings, tops, zapatillas de running
+Indumentaria y Moda,Ropa de bebés y niños,Ajuar de nacimiento, bodies, ropa escolar
+Indumentaria y Moda,Lencería y mallas,Conjuntos de ropa interior, bikinis, pijamas
+Indumentaria y Moda,Uniformes de trabajo,Ambos médicos, ropa de seguridad, bordados
+Servicios para el Hogar,Climatización (Aire acondicionado),Instalación, carga de gas, mantenimiento preventivo
+Servicios para el Hogar,Plomería y Gas,Reparación de fugas, instalación de termotanques
+Servicios para el Hogar,Electricistas matriculados,Cableado, instalación de tableros, luces LED
+Servicios para el Hogar,Servicios de limpieza (Doméstica),Limpieza por hora, limpieza de fin de obra
+Servicios para el Hogar,Mantenimiento de piscinas,Limpieza de fondo, balance de PH, cloro
+Automotriz,Talleres mecánicos,Cambio de aceite y filtro, frenos, tren delantero
+Automotriz,Lavaderos de autos (Detailing),Lavado artesanal, pulido, tratamiento cerámico
+Automotriz,Gomerías y Alineación,Venta de neumáticos, balanceo, parches
+Automotriz,Talleres de chapa y pintura,Reparación de bollos, pintura bicapa, pulido
+Automotriz,Cerrajerías del automotor,Copia de llaves con chip, apertura de puertas
+Mascotas,Veterinarias de barrio,Consultas, vacunas, desparasitación
+Mascotas,Pet Shops,Alimento balanceado, juguetes, correas
+Mascotas,Adiestramiento canino,Clases de obediencia, modificación de conducta
+Mascotas,Pensionados caninos,Hospedaje por día, guardería de día
+Mascotas,Repostería canina,Tortas de cumpleaños para perros, snacks naturales
+Educación y Cursos,Institutos de idiomas,Cursos de Inglés, Portugués, exámenes internacionales
+Educación y Cursos,Clases de apoyo escolar,Matemática, Física, preparación de ingresos
+Educación y Cursos,Escuelas de conductores,Clases de manejo, curso teórico para licencia
+Educación y Cursos,Talleres de oficio (Carpintería/Costura),Cursos cortos presenciales, venta de herramientas
+Educación y Cursos,Capacitación en Marketing Digital,Cursos de Community Manager, Ads, Reels
+Construcción y Reformas,Instaladores de Drywall (Durlock),Tabiques, cielorrasos, muebles de placa
+Construcción y Reformas,Pintores de obra,Pintura interior/exterior, aplicación de impermeabilizantes
+Construcción y Reformas,Herrerías de obra,Rejas, portones automáticos, pérgolas
+Construcción y Reformas,Vidrierías,Espejos a medida, mamparas de baño, DVH
+Construcción y Reformas,Venta de áridos y corralones,Arena, cemento, ladrillos, piedra partida
+Eventos,Alquiler de livings y carpas,Puffs, gazebos, mesas ratonas
+Eventos,Fotógrafos de eventos,Books de 15 años, casamientos, eventos corporativos
+Eventos,Alquiler de inflables y plazas blandas,Toboganes, camas elásticas, juegos de madera
+Eventos,Servicio de DJ e iluminación,Sonido para fiestas, luces robóticas, máquinas de humo
+Eventos,Catering para eventos pequeños,Pata flambeada, finger food, lunch
+Turismo Local,Cabañas y complejos vacacionales,Alquiler temporario, servicio de blanco, desayuno
+Turismo Local,Guías de pesca o aventura,Excursiones guiadas, alquiler de equipos
+Turismo Local,Transporte de pasajeros (Combis),Traslados a aeropuertos, viajes grupales
+Turismo Local,Alquiler de equipos de nieve/playa,Tablas de surf, esquíes, gazebos
+Turismo Local,Agencias de viajes regionales,Paquetes a Cataratas, Mendoza, Salta
+Inmobiliaria,Administración de alquileres,Cobro de expensas, gestión de reparaciones
+Inmobiliaria,Ventas de departamentos,Tasaciones, visitas programadas, asesoría legal
+Inmobiliaria,Alquileres temporarios (Airbnb),Check-in/out, limpieza, gestión de reservas
+Inmobiliaria,Loteos y desarrollos,Venta de terrenos en barrios abiertos/cerrados
+Inmobiliaria,Gestión de consorcios,Liquidación de sueldos de encargados, mantenimiento
+Tecnología,Servicio técnico de celulares,Cambio de módulos, baterías, pin de carga
+Tecnología,Reparación de notebooks/PC,Formateo, limpieza física, aumento de RAM
+Tecnología,Venta de accesorios (Gaming),Teclados mecánicos, mouses, auriculares
+Tecnología,Instalación de cámaras de seguridad,Cámaras IP, alarmas, monitoreo móvil
+Tecnología,Insumos de impresión,Cartuchos, tóners, papel fotográfico
+Servicios Profesionales,Estudios contables,Liquidación de impuestos, monotributo, haberes
+Servicios Profesionales,Abogados (Sucesiones/Laboral),Consultas legales, inicio de demandas
+Servicios Profesionales,Arquitectos (Proyectos),Planos, dirección de obra, renders 3D
+Servicios Profesionales,Gestores del automotor,Transferencias, informes de dominio, patentes
+Servicios Profesionales,Traductores públicos,Traducciones oficiales, legalizaciones
+Hogar y Decoración,Viveros y Paisajismo,Plantas de interior, diseño de jardines, macetas
+Hogar y Decoración,Tiendas de iluminación,Lámparas colgantes, dicroicas, apliques
+Hogar y Decoración,Tapicerías,Retapizado de sillones, confección de almohadones
+Hogar y Decoración,Blanquería,Sábanas, acolchados, toallas de alta gama
+Hogar y Decoración,Mueblerías a medida,Placares, interiores de placard, racks de TV
+Logística y Envíos,Mensajerías en moto (Cadetería),Envío de documentos, trámites bancarios
+Logística y Envíos,Fletes y Mudanzas locales,Traslado de muebles, carga y descarga
+Logística y Envíos,Transporte de encomiendas,Envíos al interior, logística para e-commerce
+Logística y Envíos,Alquiler de bauleras (Self storage),Espacios de guardado temporal
+Logística y Envíos,Reparto de agua y soda,Bidones de 20L, dispensers, sifones
+Papelería y Gráfica,Imprentas digitales,Tarjetas personales, folletos, flyers
+Papelería y Gráfica,Librerías escolares,Útiles, textos escolares, fotocopias
+Papelería y Gráfica,Cartelería y vinilos,Letras corpóreas, ploteo de vidrieras/vehículos
+Papelería y Gráfica,Regalería personalizada,Tazas sublimadas, remeras, llaveros
+Papelería y Gráfica,Encuadernación,Anillados, tesis, restauración de libros

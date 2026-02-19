@@ -5,6 +5,10 @@ import * as toolService from "../services/tool.service.js";
 import * as implService from "../services/impl.service.js";
 import * as progressService from "../services/progress.service.js";
 import * as blueprintService from "../services/blueprint.service.js";
+import * as industryService from "../services/industry.service.js";
+import * as nicheService from "../services/niche.service.js";
+import * as productService from "../services/product.service.js";
+import * as svcService from "../services/service.service.js";
 import type { Status, ProjectStatus, ProjectPhase, ImplType } from "../types/common.js";
 import { projectStatusEnum, projectPhaseEnum, implTypeEnum, toolCategoryEnum } from "../types/common.js";
 import { createCompanySchema } from "../types/company.types.js";
@@ -27,7 +31,7 @@ async function pickCompany(message = "Select a company"): Promise<string> {
   }
   return selectInput({
     message,
-    options: companies.map((c) => ({ value: c.id, label: `${c.name} (${c.industry})` })),
+    options: companies.map((c) => ({ value: c.id, label: c.name })),
   });
 }
 
@@ -69,10 +73,55 @@ async function pickBlueprint(message = "Select a blueprint"): Promise<string> {
   }
   return selectInput({
     message,
-    options: bps.map((b) => ({
-      value: b.id,
-      label: `${b.name}${b.targetIndustry ? ` (${b.targetIndustry})` : ""}`,
-    })),
+    options: bps.map((b) => ({ value: b.id, label: b.name })),
+  });
+}
+
+async function pickIndustry(message = "Select an industry"): Promise<string> {
+  const items = await industryService.listIndustries({});
+  if (items.length === 0) {
+    error("No industries found. Create one first.");
+    throw new CancelError();
+  }
+  return selectInput({
+    message,
+    options: items.map((i) => ({ value: i.id, label: i.name })),
+  });
+}
+
+async function pickNiche(message = "Select a niche", industryId?: string): Promise<string> {
+  const items = await nicheService.listNiches({ industryId });
+  if (items.length === 0) {
+    error("No niches found. Create one first.");
+    throw new CancelError();
+  }
+  return selectInput({
+    message,
+    options: items.map((n) => ({ value: n.id, label: `${n.name} (${n.industryName})` })),
+  });
+}
+
+async function pickProduct(message = "Select a product"): Promise<string> {
+  const items = await productService.listProducts({});
+  if (items.length === 0) {
+    error("No products found. Create one first.");
+    throw new CancelError();
+  }
+  return selectInput({
+    message,
+    options: items.map((p) => ({ value: p.id, label: p.name })),
+  });
+}
+
+async function pickService(message = "Select a service"): Promise<string> {
+  const items = await svcService.listServices({});
+  if (items.length === 0) {
+    error("No services found. Create one first.");
+    throw new CancelError();
+  }
+  return selectInput({
+    message,
+    options: items.map((s) => ({ value: s.id, label: s.name })),
   });
 }
 
@@ -86,6 +135,10 @@ async function companyMenu(): Promise<void> {
         { value: "add", label: "Add new company" },
         { value: "list", label: "List companies" },
         { value: "edit", label: "Edit a company" },
+        { value: "assign-industry", label: "Assign industry" },
+        { value: "assign-niche", label: "Assign niche" },
+        { value: "assign-product", label: "Assign product" },
+        { value: "assign-service", label: "Assign service" },
         { value: BACK, label: "\u2190 Back to main menu" },
       ],
     });
@@ -95,15 +148,11 @@ async function companyMenu(): Promise<void> {
     try {
       if (action === "add") {
         const name = await textInput({ message: "Company name", required: true });
-        const industry = await textInput({ message: "Industry", required: true });
-        const niche = await textInput({ message: "Niche (optional)" });
         const contactName = await textInput({ message: "Contact name (optional)" });
         const contactEmail = await textInput({ message: "Contact email (optional)" });
 
         const input = createCompanySchema.parse({
           name,
-          industry,
-          niche: niche || undefined,
           contactName: contactName || undefined,
           contactEmail: contactEmail || undefined,
         });
@@ -115,8 +164,6 @@ async function companyMenu(): Promise<void> {
         heading("Company Created");
         label("ID", company.id);
         label("Name", company.name);
-        label("Industry", company.industry);
-        if (company.niche) label("Niche", company.niche);
       }
 
       if (action === "list") {
@@ -130,9 +177,9 @@ async function companyMenu(): Promise<void> {
         }
 
         heading("Companies");
-        const table = createTable(["ID", "Name", "Industry", "Niche", "Status", "Created"]);
+        const table = createTable(["ID", "Name", "Status", "Created"]);
         for (const c of companies) {
-          table.push([c.id, c.name, c.industry, c.niche ?? "\u2014", c.status, formatDate(c.createdAt)]);
+          table.push([c.id, c.name, c.status, formatDate(c.createdAt)]);
         }
         console.log(table.toString());
 
@@ -150,8 +197,6 @@ async function companyMenu(): Promise<void> {
           if (company) {
             heading(company.name);
             label("ID", company.id);
-            label("Industry", company.industry);
-            label("Niche", company.niche);
             label("Status", company.status);
             label("Contact", company.contactName);
             label("Email", company.contactEmail);
@@ -160,6 +205,31 @@ async function companyMenu(): Promise<void> {
             label("Notes", company.notes);
             label("Created", formatDate(company.createdAt));
             label("Updated", formatDate(company.updatedAt));
+
+            if (company.industries.length > 0) {
+              heading("Industries");
+              const iTable = createTable(["Name"]);
+              for (const i of company.industries) iTable.push([i.industryName]);
+              console.log(iTable.toString());
+            }
+            if (company.niches.length > 0) {
+              heading("Niches");
+              const nTable = createTable(["Name", "Industry"]);
+              for (const n of company.niches) nTable.push([n.nicheName, n.industryName]);
+              console.log(nTable.toString());
+            }
+            if (company.products.length > 0) {
+              heading("Products");
+              const pTable = createTable(["Name", "Notes"]);
+              for (const p of company.products) pTable.push([p.productName, p.notes ?? "\u2014"]);
+              console.log(pTable.toString());
+            }
+            if (company.services.length > 0) {
+              heading("Services");
+              const sTable = createTable(["Name", "Notes"]);
+              for (const s of company.services) sTable.push([s.serviceName, s.notes ?? "\u2014"]);
+              console.log(sTable.toString());
+            }
           }
         }
       }
@@ -170,8 +240,6 @@ async function companyMenu(): Promise<void> {
         if (!existing) { error("Company not found"); continue; }
 
         const name = await textInput({ message: "Company name", initialValue: existing.name, required: true });
-        const industry = await textInput({ message: "Industry", initialValue: existing.industry, required: true });
-        const niche = await textInput({ message: "Niche", initialValue: existing.niche ?? "" });
         const status = await selectInput({
           message: "Status",
           options: [
@@ -182,15 +250,48 @@ async function companyMenu(): Promise<void> {
         }) as Status;
 
         const company = await withSpinner("Updating company", () =>
-          companyService.updateCompany(existing.id, {
-            name,
-            industry,
-            niche: niche || undefined,
-            status,
-          })
+          companyService.updateCompany(existing.id, { name, status })
         );
 
         success(`Company "${company.name}" updated.`);
+      }
+
+      if (action === "assign-industry") {
+        const companyId = await pickCompany("Which company?");
+        const industryId = await pickIndustry();
+        await withSpinner("Assigning industry", () =>
+          companyService.assignIndustry({ companyId, industryId })
+        );
+        success("Industry assigned to company.");
+      }
+
+      if (action === "assign-niche") {
+        const companyId = await pickCompany("Which company?");
+        const nicheId = await pickNiche();
+        await withSpinner("Assigning niche", () =>
+          companyService.assignNiche({ companyId, nicheId })
+        );
+        success("Niche assigned to company.");
+      }
+
+      if (action === "assign-product") {
+        const companyId = await pickCompany("Which company?");
+        const productId = await pickProduct();
+        const notes = await textInput({ message: "Notes (optional)" });
+        await withSpinner("Assigning product", () =>
+          companyService.assignProduct({ companyId, productId, notes: notes || undefined })
+        );
+        success("Product assigned to company.");
+      }
+
+      if (action === "assign-service") {
+        const companyId = await pickCompany("Which company?");
+        const serviceId = await pickService();
+        const notes = await textInput({ message: "Notes (optional)" });
+        await withSpinner("Assigning service", () =>
+          companyService.assignService({ companyId, serviceId, notes: notes || undefined })
+        );
+        success("Service assigned to company.");
       }
     } catch (err) {
       if (err instanceof CancelError) continue;
@@ -256,7 +357,6 @@ async function projectMenu(): Promise<void> {
         }
         console.log(table.toString());
 
-        // Offer to view details
         const viewChoice = await selectInput({
           message: "View details?",
           options: [
@@ -395,7 +495,6 @@ async function toolMenu(): Promise<void> {
         }
         console.log(table.toString());
 
-        // Offer to view details
         const viewChoice = await selectInput({
           message: "View details?",
           options: [
@@ -475,7 +574,6 @@ async function implMenu(): Promise<void> {
         }
         console.log(table.toString());
 
-        // Offer to view details
         const viewChoice = await selectInput({
           message: "View details?",
           options: [
@@ -584,6 +682,8 @@ async function blueprintMenu(): Promise<void> {
         { value: "list", label: "List blueprints" },
         { value: "add-step", label: "Add step to blueprint" },
         { value: "add-tool", label: "Add tool to blueprint" },
+        { value: "assign-industry", label: "Assign industry" },
+        { value: "assign-niche", label: "Assign niche" },
         { value: "apply", label: "Apply blueprint to company" },
         { value: BACK, label: "\u2190 Back to main menu" },
       ],
@@ -595,15 +695,11 @@ async function blueprintMenu(): Promise<void> {
       if (action === "add") {
         const name = await textInput({ message: "Blueprint name", required: true });
         const description = await textInput({ message: "Description (optional)" });
-        const targetIndustry = await textInput({ message: "Target industry (optional)" });
-        const targetNiche = await textInput({ message: "Target niche (optional)" });
 
         const bp = await withSpinner("Creating blueprint", () =>
           blueprintService.createBlueprint({
             name,
             description: description || undefined,
-            targetIndustry: targetIndustry || undefined,
-            targetNiche: targetNiche || undefined,
           })
         );
 
@@ -623,13 +719,12 @@ async function blueprintMenu(): Promise<void> {
         }
 
         heading("Blueprints");
-        const table = createTable(["ID", "Name", "Industry", "Niche"]);
+        const table = createTable(["ID", "Name", "Description"]);
         for (const bp of bps) {
-          table.push([bp.id, bp.name, bp.targetIndustry ?? "\u2014", bp.targetNiche ?? "\u2014"]);
+          table.push([bp.id, bp.name, bp.description ?? "\u2014"]);
         }
         console.log(table.toString());
 
-        // Offer to view details
         const viewChoice = await selectInput({
           message: "View details?",
           options: [
@@ -644,8 +739,20 @@ async function blueprintMenu(): Promise<void> {
             heading(bp.name);
             label("ID", bp.id);
             label("Description", bp.description);
-            label("Industry", bp.targetIndustry);
-            label("Niche", bp.targetNiche);
+
+            if (bp.industries.length > 0) {
+              heading("Industries");
+              const iTable = createTable(["Name"]);
+              for (const i of bp.industries) iTable.push([i.industryName]);
+              console.log(iTable.toString());
+            }
+
+            if (bp.niches.length > 0) {
+              heading("Niches");
+              const nTable = createTable(["Name", "Industry"]);
+              for (const n of bp.niches) nTable.push([n.nicheName, n.industryName]);
+              console.log(nTable.toString());
+            }
 
             if (bp.steps.length > 0) {
               heading("Steps");
@@ -707,6 +814,24 @@ async function blueprintMenu(): Promise<void> {
         success("Tool added to blueprint.");
       }
 
+      if (action === "assign-industry") {
+        const blueprintId = await pickBlueprint("Which blueprint?");
+        const industryId = await pickIndustry();
+        await withSpinner("Assigning industry", () =>
+          blueprintService.assignIndustry({ blueprintId, industryId })
+        );
+        success("Industry assigned to blueprint.");
+      }
+
+      if (action === "assign-niche") {
+        const blueprintId = await pickBlueprint("Which blueprint?");
+        const nicheId = await pickNiche();
+        await withSpinner("Assigning niche", () =>
+          blueprintService.assignNiche({ blueprintId, nicheId })
+        );
+        success("Niche assigned to blueprint.");
+      }
+
       if (action === "apply") {
         const blueprintId = await pickBlueprint("Which blueprint?");
         const companyId = await pickCompany("Which company?");
@@ -737,6 +862,208 @@ async function blueprintMenu(): Promise<void> {
   }
 }
 
+// ── Catalog Menus ──────────────────────────────────────
+
+async function industryMenu(): Promise<void> {
+  while (true) {
+    const action = await selectInput({
+      message: "Industries",
+      options: [
+        { value: "add", label: "Add industry" },
+        { value: "list", label: "List industries" },
+        { value: BACK, label: "\u2190 Back" },
+      ],
+    });
+
+    if (action === BACK) return;
+
+    try {
+      if (action === "add") {
+        const name = await textInput({ message: "Industry name", required: true });
+        const description = await textInput({ message: "Description (optional)" });
+        const industry = await withSpinner("Creating industry", () =>
+          industryService.createIndustry({ name, description: description || undefined })
+        );
+        heading("Industry Created");
+        label("ID", industry.id);
+        label("Name", industry.name);
+      }
+
+      if (action === "list") {
+        const items = await withSpinner("Loading industries", () =>
+          industryService.listIndustries({})
+        );
+        if (items.length === 0) { noResults("industries"); continue; }
+
+        heading("Industries");
+        const table = createTable(["ID", "Name", "Description"]);
+        for (const i of items) table.push([i.id, i.name, i.description ?? "\u2014"]);
+        console.log(table.toString());
+      }
+    } catch (err) {
+      if (err instanceof CancelError) continue;
+      throw err;
+    }
+  }
+}
+
+async function nicheMenu(): Promise<void> {
+  while (true) {
+    const action = await selectInput({
+      message: "Niches",
+      options: [
+        { value: "add", label: "Add niche" },
+        { value: "list", label: "List niches" },
+        { value: BACK, label: "\u2190 Back" },
+      ],
+    });
+
+    if (action === BACK) return;
+
+    try {
+      if (action === "add") {
+        const industryId = await pickIndustry("Which industry does this niche belong to?");
+        const name = await textInput({ message: "Niche name", required: true });
+        const description = await textInput({ message: "Description (optional)" });
+        const niche = await withSpinner("Creating niche", () =>
+          nicheService.createNiche({ industryId, name, description: description || undefined })
+        );
+        heading("Niche Created");
+        label("ID", niche.id);
+        label("Name", niche.name);
+      }
+
+      if (action === "list") {
+        const items = await withSpinner("Loading niches", () =>
+          nicheService.listNiches({})
+        );
+        if (items.length === 0) { noResults("niches"); continue; }
+
+        heading("Niches");
+        const table = createTable(["ID", "Name", "Industry", "Description"]);
+        for (const n of items) table.push([n.id, n.name, n.industryName, n.description ?? "\u2014"]);
+        console.log(table.toString());
+      }
+    } catch (err) {
+      if (err instanceof CancelError) continue;
+      throw err;
+    }
+  }
+}
+
+async function productMenu(): Promise<void> {
+  while (true) {
+    const action = await selectInput({
+      message: "Products",
+      options: [
+        { value: "add", label: "Add product" },
+        { value: "list", label: "List products" },
+        { value: BACK, label: "\u2190 Back" },
+      ],
+    });
+
+    if (action === BACK) return;
+
+    try {
+      if (action === "add") {
+        const name = await textInput({ message: "Product name", required: true });
+        const description = await textInput({ message: "Description (optional)" });
+        const product = await withSpinner("Creating product", () =>
+          productService.createProduct({ name, description: description || undefined })
+        );
+        heading("Product Created");
+        label("ID", product.id);
+        label("Name", product.name);
+      }
+
+      if (action === "list") {
+        const items = await withSpinner("Loading products", () =>
+          productService.listProducts({})
+        );
+        if (items.length === 0) { noResults("products"); continue; }
+
+        heading("Products");
+        const table = createTable(["ID", "Name", "Description"]);
+        for (const p of items) table.push([p.id, p.name, p.description ?? "\u2014"]);
+        console.log(table.toString());
+      }
+    } catch (err) {
+      if (err instanceof CancelError) continue;
+      throw err;
+    }
+  }
+}
+
+async function serviceMenu(): Promise<void> {
+  while (true) {
+    const action = await selectInput({
+      message: "Services",
+      options: [
+        { value: "add", label: "Add service" },
+        { value: "list", label: "List services" },
+        { value: BACK, label: "\u2190 Back" },
+      ],
+    });
+
+    if (action === BACK) return;
+
+    try {
+      if (action === "add") {
+        const name = await textInput({ message: "Service name", required: true });
+        const description = await textInput({ message: "Description (optional)" });
+        const svc = await withSpinner("Creating service", () =>
+          svcService.createService({ name, description: description || undefined })
+        );
+        heading("Service Created");
+        label("ID", svc.id);
+        label("Name", svc.name);
+      }
+
+      if (action === "list") {
+        const items = await withSpinner("Loading services", () =>
+          svcService.listServices({})
+        );
+        if (items.length === 0) { noResults("services"); continue; }
+
+        heading("Services");
+        const table = createTable(["ID", "Name", "Description"]);
+        for (const s of items) table.push([s.id, s.name, s.description ?? "\u2014"]);
+        console.log(table.toString());
+      }
+    } catch (err) {
+      if (err instanceof CancelError) continue;
+      throw err;
+    }
+  }
+}
+
+async function catalogMenu(): Promise<void> {
+  while (true) {
+    const action = await selectInput({
+      message: "Business Catalog",
+      options: [
+        { value: "industries", label: "Industries" },
+        { value: "niches", label: "Niches" },
+        { value: "products", label: "Products" },
+        { value: "services", label: "Services" },
+        { value: BACK, label: "\u2190 Back to main menu" },
+      ],
+    });
+
+    if (action === BACK) return;
+
+    try {
+      if (action === "industries") await industryMenu();
+      if (action === "niches") await nicheMenu();
+      if (action === "products") await productMenu();
+      if (action === "services") await serviceMenu();
+    } catch (err) {
+      if (err instanceof CancelError) continue;
+      throw err;
+    }
+  }
+}
+
 // ── Main Menu ──────────────────────────────────────────
 
 export async function startMenu(): Promise<void> {
@@ -751,6 +1078,7 @@ export async function startMenu(): Promise<void> {
           { value: "companies", label: "Companies" },
           { value: "projects", label: "Projects" },
           { value: "tools", label: "Tools" },
+          { value: "catalog", label: "Business Catalog" },
           { value: "impl", label: "Implementation Details" },
           { value: "progress", label: "Progress" },
           { value: "blueprints", label: "Blueprints" },
@@ -759,7 +1087,6 @@ export async function startMenu(): Promise<void> {
       });
     } catch (err) {
       if (err instanceof CancelError) {
-        // Ctrl+C on main menu = exit
         action = "exit";
       } else {
         throw err;
@@ -776,6 +1103,7 @@ export async function startMenu(): Promise<void> {
       if (action === "companies") await companyMenu();
       if (action === "projects") await projectMenu();
       if (action === "tools") await toolMenu();
+      if (action === "catalog") await catalogMenu();
       if (action === "impl") await implMenu();
       if (action === "progress") await progressMenu();
       if (action === "blueprints") await blueprintMenu();

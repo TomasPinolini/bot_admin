@@ -3,8 +3,6 @@ import { z } from "zod";
 export const createBlueprintSchema = z.object({
   name: z.string().min(1, "Blueprint name is required"),
   description: z.string().optional(),
-  targetIndustry: z.string().optional(),
-  targetNiche: z.string().optional(),
 });
 export type CreateBlueprintInput = z.infer<typeof createBlueprintSchema>;
 
@@ -32,8 +30,18 @@ export const applyBlueprintSchema = z.object({
 export type ApplyBlueprintInput = z.infer<typeof applyBlueprintSchema>;
 
 export const listBlueprintsSchema = z.object({
-  industry: z.string().optional(),
-  niche: z.string().optional(),
   search: z.string().optional(),
 });
 export type ListBlueprintsFilter = z.infer<typeof listBlueprintsSchema>;
+
+export const assignBlueprintIndustrySchema = z.object({
+  blueprintId: z.string().min(1),
+  industryId: z.string().min(1),
+});
+export type AssignBlueprintIndustryInput = z.infer<typeof assignBlueprintIndustrySchema>;
+
+export const assignBlueprintNicheSchema = z.object({
+  blueprintId: z.string().min(1),
+  nicheId: z.string().min(1),
+});
+export type AssignBlueprintNicheInput = z.infer<typeof assignBlueprintNicheSchema>;

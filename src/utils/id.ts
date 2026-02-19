@@ -10,6 +10,16 @@ const PREFIXES = {
   blueprintStep: "bs",
   blueprintTool: "bt",
   projectTool: "pt",
+  industry: "in",
+  niche: "ni",
+  product: "pd",
+  service: "sv",
+  companyIndustry: "ci",
+  companyNiche: "cn",
+  companyProduct: "cp",
+  companyService: "cs",
+  blueprintIndustry: "bi",
+  blueprintNiche: "bn",
 } as const;
 
 type EntityType = keyof typeof PREFIXES;

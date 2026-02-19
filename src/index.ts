@@ -7,6 +7,10 @@ import { registerProjectCommands } from "./commands/project.js";
 import { registerImplCommands } from "./commands/impl.js";
 import { registerProgressCommands } from "./commands/progress.js";
 import { registerBlueprintCommands } from "./commands/blueprint.js";
+import { registerIndustryCommands } from "./commands/industry.js";
+import { registerNicheCommands } from "./commands/niche.js";
+import { registerProductCommands } from "./commands/product.js";
+import { registerServiceCommands } from "./commands/service.js";
 import { closeDb } from "./db/index.js";
 
 const hasArgs = process.argv.length > 2;
@@ -34,6 +38,10 @@ if (!hasArgs) {
   registerImplCommands(program);
   registerProgressCommands(program);
   registerBlueprintCommands(program);
+  registerIndustryCommands(program);
+  registerNicheCommands(program);
+  registerProductCommands(program);
+  registerServiceCommands(program);
 
   program
     .parseAsync()

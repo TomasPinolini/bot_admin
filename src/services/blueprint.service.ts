@@ -7,15 +7,21 @@ import type {
   AddBlueprintToolInput,
   ApplyBlueprintInput,
   ListBlueprintsFilter,
+  AssignBlueprintIndustryInput,
+  AssignBlueprintNicheInput,
 } from "../types/blueprint.types.js";
 
 const {
   blueprints,
   blueprintSteps,
   blueprintTools,
+  blueprintIndustries,
+  blueprintNiches,
   tools,
   projects,
   projectTools,
+  industries,
+  niches,
 } = schema;
 
 export async function createBlueprint(input: CreateBlueprintInput) {
@@ -26,8 +32,6 @@ export async function createBlueprint(input: CreateBlueprintInput) {
       id,
       name: input.name,
       description: input.description || null,
-      targetIndustry: input.targetIndustry || null,
-      targetNiche: input.targetNiche || null,
     })
     .returning();
   return bp;
@@ -36,12 +40,6 @@ export async function createBlueprint(input: CreateBlueprintInput) {
 export async function listBlueprints(filter: ListBlueprintsFilter = {}) {
   const conditions = [isNull(blueprints.deletedAt)];
 
-  if (filter.industry) {
-    conditions.push(ilike(blueprints.targetIndustry, `%${filter.industry}%`));
-  }
-  if (filter.niche) {
-    conditions.push(ilike(blueprints.targetNiche, `%${filter.niche}%`));
-  }
   if (filter.search) {
     conditions.push(
       or(
@@ -84,7 +82,10 @@ export async function getBlueprint(id: string) {
     .innerJoin(tools, eq(blueprintTools.toolId, tools.id))
     .where(eq(blueprintTools.blueprintId, id));
 
-  return { ...bp, steps, tools: bpTools };
+  const linkedIndustries = await getBlueprintIndustries(id);
+  const linkedNiches = await getBlueprintNiches(id);
+
+  return { ...bp, steps, tools: bpTools, industries: linkedIndustries, niches: linkedNiches };
 }
 
 export async function addStep(input: AddBlueprintStepInput) {
@@ -121,7 +122,6 @@ export async function applyBlueprint(input: ApplyBlueprintInput) {
   const bp = await getBlueprint(input.blueprintId);
   if (!bp) return null;
 
-  // Create a project from the blueprint
   const projectId = generateId("project");
   const projectName =
     input.projectName || `${bp.name} (from blueprint)`;
@@ -136,7 +136,6 @@ export async function applyBlueprint(input: ApplyBlueprintInput) {
     })
     .returning();
 
-  // Assign blueprint tools to the project
   for (const bt of bp.tools) {
     const ptId = generateId("projectTool");
     await db.insert(projectTools).values({
@@ -148,4 +147,66 @@ export async function applyBlueprint(input: ApplyBlueprintInput) {
   }
 
   return { project, blueprint: bp };
+}
+
+// ── Junction helpers ──────────────────────────────────────
+
+export async function assignIndustry(input: AssignBlueprintIndustryInput) {
+  const id = generateId("blueprintIndustry");
+  const [row] = await db
+    .insert(blueprintIndustries)
+    .values({ id, blueprintId: input.blueprintId, industryId: input.industryId })
+    .returning();
+  return row;
+}
+
+export async function removeIndustry(blueprintId: string, industryId: string) {
+  const [row] = await db
+    .delete(blueprintIndustries)
+    .where(and(eq(blueprintIndustries.blueprintId, blueprintId), eq(blueprintIndustries.industryId, industryId)))
+    .returning();
+  return row || null;
+}
+
+export async function assignNiche(input: AssignBlueprintNicheInput) {
+  const id = generateId("blueprintNiche");
+  const [row] = await db
+    .insert(blueprintNiches)
+    .values({ id, blueprintId: input.blueprintId, nicheId: input.nicheId })
+    .returning();
+  return row;
+}
+
+export async function removeNiche(blueprintId: string, nicheId: string) {
+  const [row] = await db
+    .delete(blueprintNiches)
+    .where(and(eq(blueprintNiches.blueprintId, blueprintId), eq(blueprintNiches.nicheId, nicheId)))
+    .returning();
+  return row || null;
+}
+
+export async function getBlueprintIndustries(blueprintId: string) {
+  return db
+    .select({
+      id: blueprintIndustries.id,
+      industryId: industries.id,
+      industryName: industries.name,
+    })
+    .from(blueprintIndustries)
+    .innerJoin(industries, eq(blueprintIndustries.industryId, industries.id))
+    .where(eq(blueprintIndustries.blueprintId, blueprintId));
+}
+
+export async function getBlueprintNiches(blueprintId: string) {
+  return db
+    .select({
+      id: blueprintNiches.id,
+      nicheId: niches.id,
+      nicheName: niches.name,
+      industryName: industries.name,
+    })
+    .from(blueprintNiches)
+    .innerJoin(niches, eq(blueprintNiches.nicheId, niches.id))
+    .innerJoin(industries, eq(niches.industryId, industries.id))
+    .where(eq(blueprintNiches.blueprintId, blueprintId));
 }

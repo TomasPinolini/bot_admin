@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import * as service from "../services/blueprint.service.js";
 import * as toolService from "../services/tool.service.js";
-import { textInput, isCancelError } from "../ui/prompts.js";
+import * as industryService from "../services/industry.service.js";
+import * as nicheService from "../services/niche.service.js";
+import { textInput, selectInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import {
   heading,
@@ -23,8 +25,6 @@ export function registerBlueprintCommands(program: Command) {
     .description("Create a new blueprint")
     .option("--name <name>", "Blueprint name")
     .option("--description <desc>", "Description")
-    .option("--industry <industry>", "Target industry")
-    .option("--niche <niche>", "Target niche")
     .action(async (opts) => {
       try {
         const interactive = !opts.name;
@@ -35,19 +35,11 @@ export function registerBlueprintCommands(program: Command) {
         const description = interactive
           ? (opts.description ?? (await textInput({ message: "Description (optional)" })))
           : opts.description;
-        const targetIndustry = interactive
-          ? (opts.industry ?? (await textInput({ message: "Target industry (optional)" })))
-          : opts.industry;
-        const targetNiche = interactive
-          ? (opts.niche ?? (await textInput({ message: "Target niche (optional)" })))
-          : opts.niche;
 
         const bp = await withSpinner("Creating blueprint", () =>
           service.createBlueprint({
             name,
             description: description || undefined,
-            targetIndustry: targetIndustry || undefined,
-            targetNiche: targetNiche || undefined,
           })
         );
 
@@ -64,14 +56,10 @@ export function registerBlueprintCommands(program: Command) {
   cmd
     .command("list")
     .description("List blueprints")
-    .option("--industry <industry>", "Filter by industry")
-    .option("--niche <niche>", "Filter by niche")
     .option("--search <term>", "Search")
     .action(async (opts) => {
       const bps = await withSpinner("Loading blueprints", () =>
         service.listBlueprints({
-          industry: opts.industry,
-          niche: opts.niche,
           search: opts.search,
         })
       );
@@ -79,18 +67,12 @@ export function registerBlueprintCommands(program: Command) {
       if (bps.length === 0) return noResults("blueprints");
 
       heading("Blueprints");
-      const table = createTable([
-        "ID",
-        "Name",
-        "Industry",
-        "Niche",
-      ]);
+      const table = createTable(["ID", "Name", "Description"]);
       for (const bp of bps) {
         table.push([
           bp.id,
           bp.name,
-          bp.targetIndustry ?? "—",
-          bp.targetNiche ?? "—",
+          bp.description ?? "—",
         ]);
       }
       console.log(table.toString());
@@ -110,8 +92,24 @@ export function registerBlueprintCommands(program: Command) {
       heading(bp.name);
       label("ID", bp.id);
       label("Description", bp.description);
-      label("Industry", bp.targetIndustry);
-      label("Niche", bp.targetNiche);
+
+      if (bp.industries.length > 0) {
+        heading("Industries");
+        const table = createTable(["ID", "Name"]);
+        for (const i of bp.industries) {
+          table.push([i.industryId, i.industryName]);
+        }
+        console.log(table.toString());
+      }
+
+      if (bp.niches.length > 0) {
+        heading("Niches");
+        const table = createTable(["ID", "Name", "Industry"]);
+        for (const n of bp.niches) {
+          table.push([n.nicheId, n.nicheName, n.industryName]);
+        }
+        console.log(table.toString());
+      }
 
       if (bp.steps.length > 0) {
         heading("Steps");
@@ -216,6 +214,76 @@ export function registerBlueprintCommands(program: Command) {
       }
     });
 
+  // ── assign-industry ────────────────────────────────────
+  cmd
+    .command("assign-industry <blueprintId>")
+    .description("Assign an industry to a blueprint")
+    .option("--industry <industry>", "Industry ID or name")
+    .action(async (blueprintId: string, opts) => {
+      try {
+        const bp = await service.getBlueprint(blueprintId);
+        if (!bp) return error(`Blueprint not found: ${blueprintId}`);
+
+        let industryId: string;
+        if (opts.industry) {
+          const ind = await industryService.getIndustry(opts.industry);
+          if (!ind) return error(`Industry not found: ${opts.industry}`);
+          industryId = ind.id;
+        } else {
+          const industries = await industryService.listIndustries({});
+          if (industries.length === 0) return error("No industries found. Create one first.");
+          industryId = await selectInput({
+            message: "Select industry",
+            options: industries.map((i) => ({ value: i.id, label: i.name })),
+          });
+        }
+
+        await withSpinner("Assigning industry", () =>
+          service.assignIndustry({ blueprintId: bp.id, industryId })
+        );
+
+        success("Industry assigned to blueprint.");
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
+    });
+
+  // ── assign-niche ───────────────────────────────────────
+  cmd
+    .command("assign-niche <blueprintId>")
+    .description("Assign a niche to a blueprint")
+    .option("--niche <niche>", "Niche ID or name")
+    .action(async (blueprintId: string, opts) => {
+      try {
+        const bp = await service.getBlueprint(blueprintId);
+        if (!bp) return error(`Blueprint not found: ${blueprintId}`);
+
+        let nicheId: string;
+        if (opts.niche) {
+          const n = await nicheService.getNiche(opts.niche);
+          if (!n) return error(`Niche not found: ${opts.niche}`);
+          nicheId = n.id;
+        } else {
+          const niches = await nicheService.listNiches({});
+          if (niches.length === 0) return error("No niches found. Create one first.");
+          nicheId = await selectInput({
+            message: "Select niche",
+            options: niches.map((n) => ({ value: n.id, label: `${n.name} (${n.industryName})` })),
+          });
+        }
+
+        await withSpinner("Assigning niche", () =>
+          service.assignNiche({ blueprintId: bp.id, nicheId })
+        );
+
+        success("Niche assigned to blueprint.");
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
+    });
+
   // ── apply ──────────────────────────────────────────────
   cmd
     .command("apply <blueprintId>")
@@ -228,7 +296,6 @@ export function registerBlueprintCommands(program: Command) {
           opts.company ||
           (await textInput({ message: "Company ID or name", required: true }));
 
-        // Resolve company
         const { getCompany } = await import(
           "../services/company.service.js"
         );

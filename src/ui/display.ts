@@ -1,9 +1,15 @@
 import * as p from "@clack/prompts";
 
+const isTTY = process.stdout.isTTY ?? false;
+
 export async function withSpinner<T>(
   message: string,
   fn: () => Promise<T>
 ): Promise<T> {
+  if (!isTTY) {
+    return fn();
+  }
+
   const s = p.spinner();
   s.start(message);
   try {
