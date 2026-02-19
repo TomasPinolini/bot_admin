@@ -3,7 +3,7 @@ import * as service from "../services/project.service.js";
 import * as companyService from "../services/company.service.js";
 import * as toolService from "../services/tool.service.js";
 import { projectStatusEnum } from "../types/common.js";
-import { textInput, selectInput } from "../ui/prompts.js";
+import { textInput, selectInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import {
   heading,
@@ -29,33 +29,40 @@ export function registerProjectCommands(program: Command) {
     .option("--start-date <date>", "Start date (YYYY-MM-DD)")
     .option("--target-date <date>", "Target date (YYYY-MM-DD)")
     .action(async (opts) => {
-      const companyRef =
-        opts.company ||
-        (await textInput({ message: "Company ID or name", required: true }));
-      const company = await companyService.getCompany(companyRef);
-      if (!company) return error(`Company not found: ${companyRef}`);
+      try {
+        const interactive = !opts.company && !opts.name;
 
-      const name =
-        opts.name || (await textInput({ message: "Project name", required: true }));
-      const description =
-        opts.description ??
-        (await textInput({ message: "Description (optional)" }));
+        const companyRef =
+          opts.company ||
+          (await textInput({ message: "Company ID or name", required: true }));
+        const company = await companyService.getCompany(companyRef);
+        if (!company) return error(`Company not found: ${companyRef}`);
 
-      const project = await withSpinner("Creating project", () =>
-        service.createProject({
-          companyId: company.id,
-          name,
-          description: description || undefined,
-          startDate: opts.startDate,
-          targetDate: opts.targetDate,
-        })
-      );
+        const name =
+          opts.name || (await textInput({ message: "Project name", required: true }));
+        const description = interactive
+          ? (opts.description ?? (await textInput({ message: "Description (optional)" })))
+          : opts.description;
 
-      heading("Project Created");
-      label("ID", project.id);
-      label("Company", company.name);
-      label("Name", project.name);
-      label("Status", project.status);
+        const project = await withSpinner("Creating project", () =>
+          service.createProject({
+            companyId: company.id,
+            name,
+            description: description || undefined,
+            startDate: opts.startDate,
+            targetDate: opts.targetDate,
+          })
+        );
+
+        heading("Project Created");
+        label("ID", project.id);
+        label("Company", company.name);
+        label("Name", project.name);
+        label("Status", project.status);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── list ───────────────────────────────────────────────
@@ -160,22 +167,27 @@ export function registerProjectCommands(program: Command) {
     .description("Set project status directly")
     .option("--set <status>", "New status")
     .action(async (id: string, opts) => {
-      const status =
-        opts.set ||
-        (await selectInput({
-          message: "New status",
-          options: projectStatusEnum.options.map((v) => ({
-            value: v,
-            label: v,
-          })),
-        }));
+      try {
+        const status =
+          opts.set ||
+          (await selectInput({
+            message: "New status",
+            options: projectStatusEnum.options.map((v) => ({
+              value: v,
+              label: v,
+            })),
+          }));
 
-      const project = await withSpinner("Updating status", () =>
-        service.updateProject(id, { status })
-      );
+        const project = await withSpinner("Updating status", () =>
+          service.updateProject(id, { status })
+        );
 
-      if (!project) return error(`Project not found: ${id}`);
-      success(`Project status set to: ${project.status}`);
+        if (!project) return error(`Project not found: ${id}`);
+        success(`Project status set to: ${project.status}`);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── assign-tool ────────────────────────────────────────
@@ -185,23 +197,29 @@ export function registerProjectCommands(program: Command) {
     .option("--tool <id>", "Tool ID or name")
     .option("--notes <notes>", "Notes about tool usage")
     .action(async (projectId: string, opts) => {
-      const toolRef =
-        opts.tool ||
-        (await textInput({ message: "Tool ID or name", required: true }));
-      const tool = await toolService.getTool(toolRef);
-      if (!tool) return error(`Tool not found: ${toolRef}`);
+      try {
+        const toolRef =
+          opts.tool ||
+          (await textInput({ message: "Tool ID or name", required: true }));
+        const tool = await toolService.getTool(toolRef);
+        if (!tool) return error(`Tool not found: ${toolRef}`);
 
-      const notes =
-        opts.notes ?? (await textInput({ message: "Notes (optional)" }));
+        const notes = opts.tool
+          ? opts.notes
+          : (opts.notes ?? (await textInput({ message: "Notes (optional)" })));
 
-      await withSpinner("Assigning tool", () =>
-        service.assignTool({
-          projectId,
-          toolId: tool.id,
-          notes: notes || undefined,
-        })
-      );
+        await withSpinner("Assigning tool", () =>
+          service.assignTool({
+            projectId,
+            toolId: tool.id,
+            notes: notes || undefined,
+          })
+        );
 
-      success(`Tool "${tool.name}" assigned to project.`);
+        success(`Tool "${tool.name}" assigned to project.`);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 }

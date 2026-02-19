@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import * as service from "../services/blueprint.service.js";
 import * as toolService from "../services/tool.service.js";
-import { textInput } from "../ui/prompts.js";
+import { textInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import {
   heading,
@@ -26,31 +26,38 @@ export function registerBlueprintCommands(program: Command) {
     .option("--industry <industry>", "Target industry")
     .option("--niche <niche>", "Target niche")
     .action(async (opts) => {
-      const name =
-        opts.name ||
-        (await textInput({ message: "Blueprint name", required: true }));
-      const description =
-        opts.description ??
-        (await textInput({ message: "Description (optional)" }));
-      const targetIndustry =
-        opts.industry ??
-        (await textInput({ message: "Target industry (optional)" }));
-      const targetNiche =
-        opts.niche ??
-        (await textInput({ message: "Target niche (optional)" }));
+      try {
+        const interactive = !opts.name;
 
-      const bp = await withSpinner("Creating blueprint", () =>
-        service.createBlueprint({
-          name,
-          description: description || undefined,
-          targetIndustry: targetIndustry || undefined,
-          targetNiche: targetNiche || undefined,
-        })
-      );
+        const name =
+          opts.name ||
+          (await textInput({ message: "Blueprint name", required: true }));
+        const description = interactive
+          ? (opts.description ?? (await textInput({ message: "Description (optional)" })))
+          : opts.description;
+        const targetIndustry = interactive
+          ? (opts.industry ?? (await textInput({ message: "Target industry (optional)" })))
+          : opts.industry;
+        const targetNiche = interactive
+          ? (opts.niche ?? (await textInput({ message: "Target niche (optional)" })))
+          : opts.niche;
 
-      heading("Blueprint Created");
-      label("ID", bp.id);
-      label("Name", bp.name);
+        const bp = await withSpinner("Creating blueprint", () =>
+          service.createBlueprint({
+            name,
+            description: description || undefined,
+            targetIndustry: targetIndustry || undefined,
+            targetNiche: targetNiche || undefined,
+          })
+        );
+
+        heading("Blueprint Created");
+        label("ID", bp.id);
+        label("Name", bp.name);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── list ───────────────────────────────────────────────
@@ -141,29 +148,34 @@ export function registerBlueprintCommands(program: Command) {
     .option("--title <title>", "Step title")
     .option("--description <desc>", "Step description")
     .action(async (blueprintId: string, opts) => {
-      const stepOrder = opts.order
-        ? parseInt(opts.order, 10)
-        : parseInt(
-            await textInput({ message: "Step order (number)", required: true }),
-            10
-          );
-      const title =
-        opts.title ||
-        (await textInput({ message: "Step title", required: true }));
-      const description =
-        opts.description ??
-        (await textInput({ message: "Description (optional)" }));
+      try {
+        const stepOrder = opts.order
+          ? parseInt(opts.order, 10)
+          : parseInt(
+              await textInput({ message: "Step order (number)", required: true }),
+              10
+            );
+        const title =
+          opts.title ||
+          (await textInput({ message: "Step title", required: true }));
+        const description = opts.title
+          ? opts.description
+          : (opts.description ?? (await textInput({ message: "Description (optional)" })));
 
-      const step = await withSpinner("Adding step", () =>
-        service.addStep({
-          blueprintId,
-          stepOrder,
-          title,
-          description: description || undefined,
-        })
-      );
+        const step = await withSpinner("Adding step", () =>
+          service.addStep({
+            blueprintId,
+            stepOrder,
+            title,
+            description: description || undefined,
+          })
+        );
 
-      success(`Step ${step.stepOrder}: "${step.title}" added.`);
+        success(`Step ${step.stepOrder}: "${step.title}" added.`);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── add-tool ───────────────────────────────────────────
@@ -174,27 +186,34 @@ export function registerBlueprintCommands(program: Command) {
     .option("--role <role>", "Role in blueprint")
     .option("--notes <notes>", "Notes")
     .action(async (blueprintId: string, opts) => {
-      const toolRef =
-        opts.tool ||
-        (await textInput({ message: "Tool ID or name", required: true }));
-      const tool = await toolService.getTool(toolRef);
-      if (!tool) return error(`Tool not found: ${toolRef}`);
+      try {
+        const toolRef =
+          opts.tool ||
+          (await textInput({ message: "Tool ID or name", required: true }));
+        const tool = await toolService.getTool(toolRef);
+        if (!tool) return error(`Tool not found: ${toolRef}`);
 
-      const role =
-        opts.role ?? (await textInput({ message: "Role in blueprint (optional)" }));
-      const notes =
-        opts.notes ?? (await textInput({ message: "Notes (optional)" }));
+        const role = opts.tool
+          ? opts.role
+          : (opts.role ?? (await textInput({ message: "Role in blueprint (optional)" })));
+        const notes = opts.tool
+          ? opts.notes
+          : (opts.notes ?? (await textInput({ message: "Notes (optional)" })));
 
-      await withSpinner("Adding tool to blueprint", () =>
-        service.addTool({
-          blueprintId,
-          toolId: tool.id,
-          roleInBlueprint: role || undefined,
-          notes: notes || undefined,
-        })
-      );
+        await withSpinner("Adding tool to blueprint", () =>
+          service.addTool({
+            blueprintId,
+            toolId: tool.id,
+            roleInBlueprint: role || undefined,
+            notes: notes || undefined,
+          })
+        );
 
-      success(`Tool "${tool.name}" added to blueprint.`);
+        success(`Tool "${tool.name}" added to blueprint.`);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── apply ──────────────────────────────────────────────
@@ -204,36 +223,41 @@ export function registerBlueprintCommands(program: Command) {
     .option("--company <id>", "Company ID or name")
     .option("--project-name <name>", "Override project name")
     .action(async (blueprintId: string, opts) => {
-      const companyRef =
-        opts.company ||
-        (await textInput({ message: "Company ID or name", required: true }));
+      try {
+        const companyRef =
+          opts.company ||
+          (await textInput({ message: "Company ID or name", required: true }));
 
-      // Resolve company
-      const { getCompany } = await import(
-        "../services/company.service.js"
-      );
-      const company = await getCompany(companyRef);
-      if (!company) return error(`Company not found: ${companyRef}`);
+        // Resolve company
+        const { getCompany } = await import(
+          "../services/company.service.js"
+        );
+        const company = await getCompany(companyRef);
+        if (!company) return error(`Company not found: ${companyRef}`);
 
-      const projectName =
-        opts.projectName ??
-        (await textInput({ message: "Project name (optional, defaults to blueprint name)" }));
+        const projectName = opts.company
+          ? opts.projectName
+          : (opts.projectName ?? (await textInput({ message: "Project name (optional, defaults to blueprint name)" })));
 
-      const result = await withSpinner("Applying blueprint", () =>
-        service.applyBlueprint({
-          blueprintId,
-          companyId: company.id,
-          projectName: projectName || undefined,
-        })
-      );
+        const result = await withSpinner("Applying blueprint", () =>
+          service.applyBlueprint({
+            blueprintId,
+            companyId: company.id,
+            projectName: projectName || undefined,
+          })
+        );
 
-      if (!result) return error(`Blueprint not found: ${blueprintId}`);
+        if (!result) return error(`Blueprint not found: ${blueprintId}`);
 
-      heading("Blueprint Applied");
-      label("Project ID", result.project.id);
-      label("Project Name", result.project.name);
-      label("Company", company.name);
-      label("Tools Assigned", String(result.blueprint.tools.length));
-      success("Project created from blueprint. Use `bot project show` to view it.");
+        heading("Blueprint Applied");
+        label("Project ID", result.project.id);
+        label("Project Name", result.project.name);
+        label("Company", company.name);
+        label("Tools Assigned", String(result.blueprint.tools.length));
+        success("Project created from blueprint. Use `bot project show` to view it.");
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 }

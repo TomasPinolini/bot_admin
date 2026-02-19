@@ -2,7 +2,7 @@ import { Command } from "commander";
 import * as service from "../services/tool.service.js";
 import { createToolSchema } from "../types/tool.types.js";
 import { toolCategoryEnum } from "../types/common.js";
-import { textInput, selectInput } from "../ui/prompts.js";
+import { textInput, selectInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import { heading, success, label, createTable, noResults, error } from "../utils/format.js";
 
@@ -18,33 +18,44 @@ export function registerToolCommands(program: Command) {
     .option("--url <url>", "Tool URL")
     .option("--description <desc>", "Description")
     .action(async (opts) => {
-      const name =
-        opts.name || (await textInput({ message: "Tool name", required: true }));
-      const category =
-        opts.category ||
-        (await selectInput({
-          message: "Category",
-          options: toolCategoryEnum.options.map((v) => ({ value: v, label: v })),
-        }));
-      const url = opts.url ?? (await textInput({ message: "URL (optional)" }));
-      const description =
-        opts.description ?? (await textInput({ message: "Description (optional)" }));
+      try {
+        const interactive = !opts.name;
 
-      const input = createToolSchema.parse({
-        name,
-        category: category || undefined,
-        url: url || undefined,
-        description: description || undefined,
-      });
+        const name =
+          opts.name || (await textInput({ message: "Tool name", required: true }));
+        const category = interactive
+          ? (opts.category ||
+            (await selectInput({
+              message: "Category",
+              options: toolCategoryEnum.options.map((v) => ({ value: v, label: v })),
+            })))
+          : opts.category;
+        const url = interactive
+          ? (opts.url ?? (await textInput({ message: "URL (optional)" })))
+          : opts.url;
+        const description = interactive
+          ? (opts.description ?? (await textInput({ message: "Description (optional)" })))
+          : opts.description;
 
-      const tool = await withSpinner("Creating tool", () =>
-        service.createTool(input)
-      );
+        const input = createToolSchema.parse({
+          name,
+          category: category || undefined,
+          url: url || undefined,
+          description: description || undefined,
+        });
 
-      heading("Tool Registered");
-      label("ID", tool.id);
-      label("Name", tool.name);
-      label("Category", tool.category);
+        const tool = await withSpinner("Creating tool", () =>
+          service.createTool(input)
+        );
+
+        heading("Tool Registered");
+        label("ID", tool.id);
+        label("Name", tool.name);
+        label("Category", tool.category);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── list ───────────────────────────────────────────────

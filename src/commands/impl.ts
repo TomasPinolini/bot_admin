@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import * as service from "../services/impl.service.js";
 import { implTypeEnum } from "../types/common.js";
-import { textInput, selectInput } from "../ui/prompts.js";
+import { textInput, selectInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import {
   heading,
@@ -27,34 +27,39 @@ export function registerImplCommands(program: Command) {
     .option("--title <title>", "Title")
     .option("--content <content>", "Content")
     .action(async (opts) => {
-      const projectId =
-        opts.project ||
-        (await textInput({ message: "Project ID", required: true }));
-      const type =
-        opts.type ||
-        (await selectInput({
-          message: "Type",
-          options: implTypeEnum.options.map((v) => ({ value: v, label: v })),
-        }));
-      const title =
-        opts.title || (await textInput({ message: "Title", required: true }));
-      const content =
-        opts.content ||
-        (await textInput({ message: "Content", required: true }));
+      try {
+        const projectId =
+          opts.project ||
+          (await textInput({ message: "Project ID", required: true }));
+        const type =
+          opts.type ||
+          (await selectInput({
+            message: "Type",
+            options: implTypeEnum.options.map((v) => ({ value: v, label: v })),
+          }));
+        const title =
+          opts.title || (await textInput({ message: "Title", required: true }));
+        const content =
+          opts.content ||
+          (await textInput({ message: "Content", required: true }));
 
-      const impl = await withSpinner("Creating implementation detail", () =>
-        service.createImpl({
-          projectId,
-          type,
-          title,
-          content,
-        })
-      );
+        const impl = await withSpinner("Creating implementation detail", () =>
+          service.createImpl({
+            projectId,
+            type,
+            title,
+            content,
+          })
+        );
 
-      heading("Implementation Detail Created");
-      label("ID", impl.id);
-      label("Type", impl.type);
-      label("Title", impl.title);
+        heading("Implementation Detail Created");
+        label("ID", impl.id);
+        label("Type", impl.type);
+        label("Title", impl.title);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── list ───────────────────────────────────────────────

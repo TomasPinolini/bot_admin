@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import * as service from "../services/progress.service.js";
 import { projectPhaseEnum } from "../types/common.js";
-import { textInput, selectInput } from "../ui/prompts.js";
+import { textInput, selectInput, isCancelError } from "../ui/prompts.js";
 import { withSpinner } from "../ui/display.js";
 import {
   heading,
@@ -26,33 +26,41 @@ export function registerProgressCommands(program: Command) {
     .option("--note <note>", "Note")
     .option("--by <name>", "Logged by")
     .action(async (opts) => {
-      const projectId =
-        opts.project ||
-        (await textInput({ message: "Project ID", required: true }));
-      const phase =
-        opts.phase ||
-        (await selectInput({
-          message: "Phase",
-          options: projectPhaseEnum.options.map((v) => ({
-            value: v,
-            label: v,
-          })),
-        }));
-      const note =
-        opts.note ?? (await textInput({ message: "Note (optional)" }));
-      const loggedBy =
-        opts.by ?? (await textInput({ message: "Logged by (optional)" }));
+      try {
+        const projectId =
+          opts.project ||
+          (await textInput({ message: "Project ID", required: true }));
+        const phase =
+          opts.phase ||
+          (await selectInput({
+            message: "Phase",
+            options: projectPhaseEnum.options.map((v) => ({
+              value: v,
+              label: v,
+            })),
+          }));
+        const interactive = !opts.project && !opts.phase;
+        const note = interactive
+          ? (opts.note ?? (await textInput({ message: "Note (optional)" })))
+          : opts.note;
+        const loggedBy = interactive
+          ? (opts.by ?? (await textInput({ message: "Logged by (optional)" })))
+          : opts.by;
 
-      const log = await withSpinner("Logging progress", () =>
-        service.createProgressLog({
-          projectId,
-          phase,
-          note: note || undefined,
-          loggedBy: loggedBy || undefined,
-        })
-      );
+        const log = await withSpinner("Logging progress", () =>
+          service.createProgressLog({
+            projectId,
+            phase,
+            note: note || undefined,
+            loggedBy: loggedBy || undefined,
+          })
+        );
 
-      success(`Progress logged: ${log.phase} — ${log.note || "(no note)"}`);
+        success(`Progress logged: ${log.phase} — ${log.note || "(no note)"}`);
+      } catch (err) {
+        if (isCancelError(err)) process.exit(0);
+        throw err;
+      }
     });
 
   // ── timeline ───────────────────────────────────────────

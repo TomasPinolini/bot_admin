@@ -7,22 +7,40 @@ import { registerProjectCommands } from "./commands/project.js";
 import { registerImplCommands } from "./commands/impl.js";
 import { registerProgressCommands } from "./commands/progress.js";
 import { registerBlueprintCommands } from "./commands/blueprint.js";
+import { closeDb } from "./db/index.js";
 
-const program = new Command();
+const hasArgs = process.argv.length > 2;
 
-program
-  .name("bot")
-  .description("Bot Admin — manage AI chatbot implementations, clients, and blueprints")
-  .version("0.1.0");
+if (!hasArgs) {
+  // Interactive menu mode
+  const { startMenu } = await import("./menu/index.js");
+  startMenu().catch(async (err) => {
+    console.error(err);
+    await closeDb();
+    process.exit(1);
+  });
+} else {
+  // Flag-based CLI mode
+  const program = new Command();
 
-registerCompanyCommands(program);
-registerToolCommands(program);
-registerProjectCommands(program);
-registerImplCommands(program);
-registerProgressCommands(program);
-registerBlueprintCommands(program);
+  program
+    .name("bot")
+    .description("Bot Admin — manage AI chatbot implementations, clients, and blueprints")
+    .version("0.1.0");
 
-program.parseAsync().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+  registerCompanyCommands(program);
+  registerToolCommands(program);
+  registerProjectCommands(program);
+  registerImplCommands(program);
+  registerProgressCommands(program);
+  registerBlueprintCommands(program);
+
+  program
+    .parseAsync()
+    .then(() => closeDb())
+    .catch(async (err) => {
+      console.error(err);
+      await closeDb();
+      process.exit(1);
+    });
+}
