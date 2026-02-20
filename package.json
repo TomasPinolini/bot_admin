@@ -7,8 +7,10 @@
     "bot": "./dist/index.js"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "npm run dev --prefix web",
+    "dev:cli": "tsx src/index.ts",
+    "build": "npm run build --prefix web",
+    "build:cli": "tsup src/index.ts --format esm --dts --clean",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
