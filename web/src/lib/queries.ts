@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, isNull, sql, desc, count } from "drizzle-orm";
+import { eq, isNull, sql, desc, count, and } from "drizzle-orm";
 import * as s from "./schema";
 
 // ── Tools ──────────────────────────────────────────────────
@@ -82,7 +82,7 @@ export async function getCompany(id: string) {
       .orderBy(desc(s.projects.updatedAt)),
 
     db
-      .select({ name: s.industries.name })
+      .select({ id: s.industries.id, name: s.industries.name })
       .from(s.companyIndustries)
       .innerJoin(
         s.industries,
@@ -91,13 +91,13 @@ export async function getCompany(id: string) {
       .where(eq(s.companyIndustries.companyId, id)),
 
     db
-      .select({ name: s.products.name })
+      .select({ id: s.products.id, name: s.products.name })
       .from(s.companyProducts)
       .innerJoin(s.products, eq(s.companyProducts.productId, s.products.id))
       .where(eq(s.companyProducts.companyId, id)),
 
     db
-      .select({ name: s.services.name })
+      .select({ id: s.services.id, name: s.services.name })
       .from(s.companyServices)
       .innerJoin(s.services, eq(s.companyServices.serviceId, s.services.id))
       .where(eq(s.companyServices.companyId, id)),
@@ -106,9 +106,9 @@ export async function getCompany(id: string) {
   return {
     ...company,
     projects,
-    industries: industries.map((i) => i.name),
-    products: products.map((p) => p.name),
-    services: services.map((sv) => sv.name),
+    industries,
+    products,
+    services,
   };
 }
 
@@ -347,4 +347,92 @@ export async function getTimelineProjects() {
     .innerJoin(s.companies, eq(s.projects.companyId, s.companies.id))
     .where(isNull(s.projects.deletedAt))
     .orderBy(s.projects.startDate);
+}
+
+// ── Catalog: Industries ─────────────────────────────────────
+
+export async function getIndustries() {
+  return db
+    .select({
+      id: s.industries.id,
+      name: s.industries.name,
+      description: s.industries.description,
+      nicheCount:
+        sql<number>`(SELECT count(*)::int FROM niches WHERE niches.industry_id = "industries"."id" AND niches.deleted_at IS NULL)`,
+    })
+    .from(s.industries)
+    .where(isNull(s.industries.deletedAt))
+    .orderBy(s.industries.name);
+}
+
+// ── Catalog: Niches ─────────────────────────────────────────
+
+export async function getNiches() {
+  return db
+    .select({
+      id: s.niches.id,
+      name: s.niches.name,
+      description: s.niches.description,
+      industryId: s.niches.industryId,
+      industryName: s.industries.name,
+    })
+    .from(s.niches)
+    .innerJoin(s.industries, eq(s.niches.industryId, s.industries.id))
+    .where(isNull(s.niches.deletedAt))
+    .orderBy(s.industries.name, s.niches.name);
+}
+
+// ── Catalog: Products ───────────────────────────────────────
+
+export async function getProducts() {
+  return db
+    .select({
+      id: s.products.id,
+      name: s.products.name,
+      description: s.products.description,
+    })
+    .from(s.products)
+    .where(isNull(s.products.deletedAt))
+    .orderBy(s.products.name);
+}
+
+// ── Catalog: Services ───────────────────────────────────────
+
+export async function getServices() {
+  return db
+    .select({
+      id: s.services.id,
+      name: s.services.name,
+      description: s.services.description,
+    })
+    .from(s.services)
+    .where(isNull(s.services.deletedAt))
+    .orderBy(s.services.name);
+}
+
+// ── Company Assigned IDs ────────────────────────────────────
+
+export async function getCompanyAssignedIds(
+  companyId: string,
+  type: "industry" | "product" | "service"
+): Promise<string[]> {
+  if (type === "industry") {
+    const rows = await db
+      .select({ id: s.companyIndustries.industryId })
+      .from(s.companyIndustries)
+      .where(eq(s.companyIndustries.companyId, companyId));
+    return rows.map((r) => r.id);
+  }
+  if (type === "product") {
+    const rows = await db
+      .select({ id: s.companyProducts.productId })
+      .from(s.companyProducts)
+      .where(eq(s.companyProducts.companyId, companyId));
+    return rows.map((r) => r.id);
+  }
+  const rows = await db
+    .select({ id: s.companyServices.serviceId })
+    .from(s.companyServices)
+    .where(eq(s.companyServices.companyId, companyId));
+  return rows.map((r) => r.id);
 }

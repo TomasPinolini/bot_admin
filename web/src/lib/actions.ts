@@ -2,7 +2,7 @@
 
 import { db } from "./db";
 import * as s from "./schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { generateId } from "./ids";
 import { revalidatePath } from "next/cache";
 
@@ -162,6 +162,187 @@ export async function createBlueprint(formData: FormData) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     if (msg.includes("unique")) return { error: "A blueprint with that name already exists" };
+    return { error: msg };
+  }
+}
+
+// ── Catalog: Industries ─────────────────────────────────────
+
+export async function createIndustry(formData: FormData) {
+  const name = formData.get("name") as string | null;
+  if (!name?.trim()) return { error: "Name is required" };
+
+  try {
+    const id = generateId("industry");
+    await db.insert(s.industries).values({
+      id,
+      name: name.trim(),
+      description: (formData.get("description") as string)?.trim() || null,
+    });
+    revalidatePath("/catalog");
+    revalidatePath("/");
+    return { success: true, id };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    if (msg.includes("unique")) return { error: "An industry with that name already exists" };
+    return { error: msg };
+  }
+}
+
+// ── Catalog: Niches ─────────────────────────────────────────
+
+export async function createNiche(formData: FormData) {
+  const industryId = formData.get("industryId") as string | null;
+  const name = formData.get("name") as string | null;
+  if (!industryId?.trim()) return { error: "Industry is required" };
+  if (!name?.trim()) return { error: "Name is required" };
+
+  try {
+    const id = generateId("niche");
+    await db.insert(s.niches).values({
+      id,
+      industryId: industryId.trim(),
+      name: name.trim(),
+      description: (formData.get("description") as string)?.trim() || null,
+    });
+    revalidatePath("/catalog");
+    revalidatePath("/");
+    return { success: true, id };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    if (msg.includes("unique")) return { error: "A niche with that name already exists in this industry" };
+    return { error: msg };
+  }
+}
+
+// ── Catalog: Products ───────────────────────────────────────
+
+export async function createProduct(formData: FormData) {
+  const name = formData.get("name") as string | null;
+  if (!name?.trim()) return { error: "Name is required" };
+
+  try {
+    const id = generateId("product");
+    await db.insert(s.products).values({
+      id,
+      name: name.trim(),
+      description: (formData.get("description") as string)?.trim() || null,
+    });
+    revalidatePath("/catalog");
+    revalidatePath("/");
+    return { success: true, id };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    if (msg.includes("unique")) return { error: "A product with that name already exists" };
+    return { error: msg };
+  }
+}
+
+// ── Catalog: Services ───────────────────────────────────────
+
+export async function createService(formData: FormData) {
+  const name = formData.get("name") as string | null;
+  if (!name?.trim()) return { error: "Name is required" };
+
+  try {
+    const id = generateId("service");
+    await db.insert(s.services).values({
+      id,
+      name: name.trim(),
+      description: (formData.get("description") as string)?.trim() || null,
+    });
+    revalidatePath("/catalog");
+    revalidatePath("/");
+    return { success: true, id };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    if (msg.includes("unique")) return { error: "A service with that name already exists" };
+    return { error: msg };
+  }
+}
+
+// ── Catalog: Delete ─────────────────────────────────────────
+
+export async function deleteCatalogItem(formData: FormData) {
+  const type = formData.get("type") as string | null;
+  const id = formData.get("id") as string | null;
+  if (!type || !id) return { error: "Missing type or id" };
+
+  try {
+    const now = new Date();
+    if (type === "industry") {
+      await db.update(s.industries).set({ deletedAt: now }).where(eq(s.industries.id, id));
+    } else if (type === "niche") {
+      await db.update(s.niches).set({ deletedAt: now }).where(eq(s.niches.id, id));
+    } else if (type === "product") {
+      await db.update(s.products).set({ deletedAt: now }).where(eq(s.products.id, id));
+    } else if (type === "service") {
+      await db.update(s.services).set({ deletedAt: now }).where(eq(s.services.id, id));
+    } else {
+      return { error: "Invalid type" };
+    }
+    revalidatePath("/catalog");
+    revalidatePath("/companies");
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { error: msg };
+  }
+}
+
+// ── Company Assignments ─────────────────────────────────────
+
+export async function updateCompanyAssignments(formData: FormData) {
+  const companyId = formData.get("companyId") as string | null;
+  const type = formData.get("type") as string | null;
+  const idsJson = formData.get("ids") as string | null;
+  if (!companyId || !type) return { error: "Missing companyId or type" };
+
+  const ids: string[] = idsJson ? JSON.parse(idsJson) : [];
+
+  try {
+    if (type === "industry") {
+      await db.delete(s.companyIndustries).where(eq(s.companyIndustries.companyId, companyId));
+      if (ids.length > 0) {
+        await db.insert(s.companyIndustries).values(
+          ids.map((industryId) => ({
+            id: generateId("companyIndustry"),
+            companyId,
+            industryId,
+          }))
+        );
+      }
+    } else if (type === "product") {
+      await db.delete(s.companyProducts).where(eq(s.companyProducts.companyId, companyId));
+      if (ids.length > 0) {
+        await db.insert(s.companyProducts).values(
+          ids.map((productId) => ({
+            id: generateId("companyProduct"),
+            companyId,
+            productId,
+          }))
+        );
+      }
+    } else if (type === "service") {
+      await db.delete(s.companyServices).where(eq(s.companyServices.companyId, companyId));
+      if (ids.length > 0) {
+        await db.insert(s.companyServices).values(
+          ids.map((serviceId) => ({
+            id: generateId("companyService"),
+            companyId,
+            serviceId,
+          }))
+        );
+      }
+    } else {
+      return { error: "Invalid type" };
+    }
+    revalidatePath("/catalog");
+    revalidatePath(`/companies/${companyId}`);
+    revalidatePath("/companies");
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
     return { error: msg };
   }
 }

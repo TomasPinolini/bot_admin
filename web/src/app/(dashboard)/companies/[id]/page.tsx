@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { getCompany } from "@/lib/queries";
+import { getCompany, getIndustries, getProducts, getServices } from "@/lib/queries";
 import { formatDate, timeAgo, statusToBadge, statusLabel } from "@/lib/utils";
 import { EditCompanyButton } from "@/components/forms/edit-company-button";
 import { NewProjectButton } from "@/components/forms/new-project-button";
+import { ManageCompanyCatalogButton } from "@/components/forms/manage-company-catalog-button";
 
 export default async function CompanyDetailPage({
   params,
@@ -12,7 +13,12 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const company = await getCompany(id);
+  const [company, allIndustries, allProducts, allServices] = await Promise.all([
+    getCompany(id),
+    getIndustries(),
+    getProducts(),
+    getServices(),
+  ]);
   if (!company) notFound();
 
   const companyForEdit = {
@@ -23,6 +29,10 @@ export default async function CompanyDetailPage({
     contactPhone: company.contactPhone,
     website: company.website,
   };
+
+  const assignedIndustryIds = company.industries.map((i) => i.id);
+  const assignedProductIds = company.products.map((p) => p.id);
+  const assignedServiceIds = company.services.map((sv) => sv.id);
 
   return (
     <div className="flex flex-col gap-6 p-8 px-10 h-full">
@@ -49,7 +59,7 @@ export default async function CompanyDetailPage({
               <Badge status={company.status === "active" ? "active" : "pending"} />
             </div>
             <p className="text-sm text-text-secondary">
-              {company.industries.length > 0 ? company.industries.join(", ") : "No industry"} &middot; Created {formatDate(company.createdAt)}
+              {company.industries.length > 0 ? company.industries.map((i) => i.name).join(", ") : "No industry"} &middot; Created {formatDate(company.createdAt)}
             </p>
           </div>
         </div>
@@ -94,14 +104,23 @@ export default async function CompanyDetailPage({
 
         {/* Side info */}
         <div className="flex flex-col gap-5 w-[280px] shrink-0">
+          {/* Company Info card */}
           <div className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-5">
             <h3 className="text-sm font-medium text-text-primary">Company Info</h3>
             <div className="flex flex-col gap-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between items-center text-sm">
                 <span className="text-text-muted">Industry</span>
-                <span className="text-text-primary">
-                  {company.industries.length > 0 ? company.industries.join(", ") : "\u2014"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-text-primary">
+                    {company.industries.length > 0 ? company.industries.map((i) => i.name).join(", ") : "\u2014"}
+                  </span>
+                  <ManageCompanyCatalogButton
+                    companyId={company.id}
+                    type="industry"
+                    allItems={allIndustries}
+                    assignedIds={assignedIndustryIds}
+                  />
+                </div>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Contact</span>
@@ -114,16 +133,50 @@ export default async function CompanyDetailPage({
             </div>
           </div>
 
+          {/* Products card */}
           <div className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-5">
-            <h3 className="text-sm font-medium text-text-primary">Products & Services</h3>
-            {company.products.length === 0 && company.services.length === 0 ? (
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-primary">Products</h3>
+              <ManageCompanyCatalogButton
+                companyId={company.id}
+                type="product"
+                allItems={allProducts}
+                assignedIds={assignedProductIds}
+              />
+            </div>
+            {company.products.length === 0 ? (
               <p className="text-xs text-text-muted">None added yet</p>
             ) : (
               <div className="flex flex-col gap-2">
-                {[...company.products, ...company.services].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm text-text-secondary">
+                {company.products.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 text-sm text-text-secondary">
                     <div className="w-1.5 h-1.5 rounded-full bg-accent" />
-                    {item}
+                    {item.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Services card */}
+          <div className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium text-text-primary">Services</h3>
+              <ManageCompanyCatalogButton
+                companyId={company.id}
+                type="service"
+                allItems={allServices}
+                assignedIds={assignedServiceIds}
+              />
+            </div>
+            {company.services.length === 0 ? (
+              <p className="text-xs text-text-muted">None added yet</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {company.services.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 text-sm text-text-secondary">
+                    <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    {item.name}
                   </div>
                 ))}
               </div>

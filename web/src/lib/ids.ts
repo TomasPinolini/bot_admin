@@ -5,6 +5,14 @@ const PREFIXES = {
   project: "pj",
   tool: "tl",
   blueprint: "bp",
+  industry: "in",
+  niche: "ni",
+  product: "pd",
+  service: "sv",
+  companyIndustry: "ci",
+  companyNiche: "cn",
+  companyProduct: "cp",
+  companyService: "cs",
 } as const;
 
 type EntityType = keyof typeof PREFIXES;

@@ -8,6 +8,7 @@ import {
   FolderKanban,
   Layers,
   Wrench,
+  BookOpen,
   BarChart3,
   Settings,
 } from "lucide-react";
@@ -18,6 +19,7 @@ const navItems = [
   { label: "Projects", icon: FolderKanban, href: "/projects" },
   { label: "Blueprints", icon: Layers, href: "/blueprints" },
   { label: "Tools", icon: Wrench, href: "/tools" },
+  { label: "Catalog", icon: BookOpen, href: "/catalog" },
   { label: "Analytics", icon: BarChart3, href: "/analytics" },
   { label: "Settings", icon: Settings, href: "/settings" },
 ];
