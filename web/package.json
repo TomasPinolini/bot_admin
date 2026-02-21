@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.39.0",
     "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.575.0",
     "nanoid": "^5.1.6",

@@ -1,11 +1,9 @@
-name: CI
+name: Deploy Trigger.dev
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 jobs:
-  check:
+  deploy-trigger:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,7 +12,6 @@ jobs:
           node-version: 22
           cache: "npm"
       - run: npm ci
-      - run: npm ci --prefix web
-      - run: npm run typecheck
-      - run: npm run typecheck --prefix web
-      - run: npm run build --prefix web
+      - run: npx trigger.dev@latest deploy
+        env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}

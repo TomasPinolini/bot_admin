@@ -6,7 +6,10 @@ const globalForDb = globalThis as unknown as {
   conn: postgres.Sql | undefined;
 };
 
-const conn = globalForDb.conn ?? postgres(process.env.DATABASE_URL!, { max: 3 });
+const conn = globalForDb.conn ?? postgres(process.env.DATABASE_URL!, {
+  max: 3,
+  prepare: false, // Required for Supavisor transaction pooling on Vercel
+});
 if (process.env.NODE_ENV !== "production") globalForDb.conn = conn;
 
 export const db = drizzle(conn, { schema });

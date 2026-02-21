@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
+    "@trigger.dev/sdk": "4.4.1",
     "chalk": "^5.4.1",
     "cli-table3": "^0.6.5",
     "commander": "^13.1.0",
@@ -31,6 +32,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@trigger.dev/build": "4.4.1",
     "@types/node": "^22.13.4",
     "drizzle-kit": "^0.30.5",
     "tsup": "^8.4.0",
