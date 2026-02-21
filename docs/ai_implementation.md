@@ -4,7 +4,7 @@
 
 After every client meeting recorded on Fireflies.ai, the developer manually reads notes, creates company records, and types in project details — a process that takes 15-30 minutes per meeting and is error-prone. When starting a new project, there's no way to discover that a nearly identical project was completed six months ago for a company in the same niche, leading to redundant setup. The system currently has no connection to external data sources, so company profiles contain only what the developer remembers to type.
 
-**Goal**: Build a four-phase AI pipeline that transforms Fireflies meeting recordings into fully hydrated company profiles and intelligently pre-populated projects — with AI-powered meeting preparation to maximize the quality of every client conversation.
+**Goal**: Build a five-phase AI pipeline that transforms Fireflies meeting recordings into fully hydrated company profiles and intelligently pre-populated projects — with AI-powered meeting preparation to maximize the quality of every client conversation, and full cost/revenue tracking for project profitability visibility.
 
 ---
 
@@ -45,8 +45,14 @@ POST-MEETING FLOW:
 | **Phase 1.5: Meeting Preparation** | 8 | 8 | 6 | 384 | ~8-10 days |
 | **Phase 2: Company Investigation** | 7 | 6 | 4 | 168 | ~6 days |
 | **Phase 3: Blueprint Matching & Reuse** | 8 | 7 | 5 | 280 | ~5 days |
+| **Phase 4: Cost & Revenue Management** | 7 | 9 | 7 | 441 | ~5-6 days |
 
-**Build order**: Phase 0 → Phase 1 → Phase 1.5 → Phase 2 → Phase 3
+**Build order**: Phase 0 → Phase 1 → Phase 1.5 → Phase 2 → Phase 3 → Phase 4
+
+> **Note on Phase 4**: Cost & Revenue Management is fully independent of the AI pipeline. It can be
+> built in parallel with any phase, or even first if financial tracking is the immediate priority.
+> It's placed last in the default order because the AI features deliver more unique value, but
+> reordering is trivial since it has zero dependencies on other phases.
 
 > **Note**: Phase 1.5 is positioned after Fireflies import because it reuses the `meetings` table
 > and Company Investigation infrastructure. Phase 2 remains separate because investigation can be
@@ -141,6 +147,14 @@ POST-MEETING FLOW:
 **Why**: Google Calendar OAuth adds 2-3 days of implementation complexity (consent screens, token refresh, webhook subscriptions). At the expected volume of 10-20 meetings/month, manual scheduling in-app takes seconds. Calendar sync can be added later as a Phase 4+ enhancement if needed.
 
 **Consequence**: Developer must enter meeting details in two places (Google Calendar + app). Acceptable tradeoff for shipping faster.
+
+### ADR-012: Cost Tracking — Single Expenses Table with Allocation Splits
+
+**Decision**: Use one `expenses` table for both subscriptions and one-time costs, with `expense_allocations` to split costs across multiple projects by percentage. Track revenue separately in a `payments` table linked to projects.
+
+**Why**: A unified expense model avoids the complexity of separate subscription-tracking infrastructure (no cron jobs, no auto-generated entries). Subscriptions are simply recurring expenses logged once per billing cycle — a "Generate Recurring" button pre-fills this month's entries from last month's active subscriptions. This keeps the developer in control and aware of all costs.
+
+**Consequence**: Monthly recurring expenses require a manual action (clicking "Generate Recurring"). At 10-20 subscriptions, this takes ~30 seconds per month. If it becomes tedious, automation via Trigger.dev `schedules.task` can be added later. The `paidBy` field is plain text (dev name) — no team_members table needed at current scale.
 
 ---
 
@@ -258,6 +272,54 @@ model           text NOT NULL DEFAULT 'text-embedding-3-small'
 createdAt / updatedAt   timestamptz
 ```
 
+**`expenses`** (Phase 4)
+```
+id              text PK (prefix: ex_)
+description     text NOT NULL
+amount          numeric(10,2) NOT NULL
+currency        text NOT NULL DEFAULT 'USD'
+type            text NOT NULL -- subscription | one_time
+category        text NOT NULL -- tool | infrastructure | contractor | domain | hosting | license | other
+billingCycle    text -- monthly | annual | quarterly | null (for one-time)
+toolId          text FK → tools.id (nullable, for tool-related costs)
+paidBy          text NOT NULL (dev name who paid)
+paidAt          date NOT NULL
+isActive        boolean NOT NULL DEFAULT true (for subscriptions — track if still active)
+receiptUrl      text (optional link to receipt/invoice)
+notes           text
+createdAt / updatedAt   timestamptz
+deletedAt       timestamptz
+```
+
+**`expense_allocations`** (Phase 4)
+```
+id              text PK (prefix: ea_)
+expenseId       text FK → expenses.id NOT NULL
+projectId       text FK → projects.id NOT NULL
+percentage      numeric(5,2) NOT NULL (0.00-100.00)
+createdAt       timestamptz
+```
+
+> Unallocated remainder (100% minus sum of allocations) is treated as overhead/general business cost.
+> A constraint ensures the sum of percentages per expense never exceeds 100.
+
+**`payments`** (Phase 4)
+```
+id              text PK (prefix: py_)
+projectId       text FK → projects.id NOT NULL
+description     text NOT NULL
+amount          numeric(10,2) NOT NULL
+currency        text NOT NULL DEFAULT 'USD'
+paymentMethod   text (bank_transfer | credit_card | paypal | cash | crypto | other)
+receivedAt      date NOT NULL
+notes           text
+createdAt / updatedAt   timestamptz
+deletedAt       timestamptz
+```
+
+> Revenue is tied to projects, and projects already link to companies — so "who paid"
+> is derived from `projects.companyId → companies.name`.
+
 ### Modified Tables
 
 **`companies`** — add nullable columns (Phase 1):
@@ -281,7 +343,8 @@ createdAt / updatedAt   timestamptz
 Add to both `web/src/lib/ids.ts` and `src/utils/id.ts`:
 ```
 meeting: "mt", meetingExtraction: "mx", scheduledMeeting: "sm",
-meetingPreparation: "mp", companyBrief: "cb", projectEmbedding: "pe"
+meetingPreparation: "mp", companyBrief: "cb", projectEmbedding: "pe",
+expense: "ex", expenseAllocation: "ea", payment: "py"
 ```
 
 ### pgvector Extension
@@ -527,6 +590,78 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 - 5-star rating UI + optional outcome text field
 - Rating used as weighting factor in future similarity search: `similarity * (rating / 5.0)`
 
+### Phase 4: Cost & Revenue Management
+
+**US-C-01: Add a one-time expense** (Size: S)
+- Form at `/costs` (Expenses tab) with fields: description, amount, currency, category (dropdown), tool (optional select), paid by (text/dropdown of known names), date, receipt URL, notes
+- Type is set to `one_time`, billingCycle is null
+- **AC**: Given I fill description + amount + category + paidBy + date, when I submit, then expense is created and appears in the expenses table. Given I link it to a tool, then it shows the tool name in the table.
+
+**US-C-02: Add a recurring subscription** (Size: S)
+- Same form as one-time but with type `subscription` and a billing cycle selector (monthly/annual/quarterly)
+- `isActive` defaults to true
+- **AC**: Given I add "Supabase Pro" as a monthly subscription for $25, when I save, then it appears in the expenses table with a "Recurring" badge and "Monthly" cycle label.
+
+**US-C-03: Allocate expense to projects** (Size: M)
+- After creating an expense, "Allocate" button opens a modal/inline form
+- Select project(s) from dropdown, assign percentage to each
+- Percentages are validated: sum must not exceed 100%
+- Unallocated remainder shown as "Overhead" in the UI
+- **AC**: Given an expense of $100, when I allocate 60% to Project A and 30% to Project B, then Project A shows $60, Project B shows $30, and $10 is shown as overhead. Given I try to allocate 70% + 50%, then validation error prevents it.
+
+**US-C-04: Generate recurring expenses** (Size: M)
+- "Generate Recurring" button on the expenses tab
+- Finds all active subscriptions, creates new expense entries for the current billing period
+- Pre-fills allocations from the most recent entry of each subscription
+- Shows a confirmation modal: list of subscriptions to be generated, total amount, pre-filled allocations
+- Developer can edit allocations or skip individual subscriptions before confirming
+- Deduplication: skips subscriptions that already have an entry for the current period
+- **AC**: Given 3 active monthly subscriptions, when I click "Generate Recurring" in February, then 3 new expense entries are created dated February with last month's allocations. Given one subscription already has a February entry, then only 2 are generated.
+
+**US-C-05: Record a payment (revenue)** (Size: S)
+- Form on the Revenue tab: project (select), description, amount, payment method (dropdown), date received, notes
+- Project is required — revenue is always tied to a project
+- **AC**: Given I record a $5000 payment for Project A via bank transfer, when I save, then it appears in the revenue table linked to Project A and its company.
+
+**US-C-06: Expenses list with filters** (Size: M)
+- `/costs` Expenses tab shows a filterable/sortable table: Date, Description, Amount, Category, Type badge (one-time/subscription), Tool, Paid By, Allocations summary
+- Filters: date range, category, type (all/subscription/one-time), tool, paid by
+- Quick stats at top: total this month, total subscriptions (monthly burn rate), total one-time
+- **AC**: Given 10 expenses across 3 categories, when I filter by "tool" category, then only tool expenses are shown. When I clear filters, all 10 are shown.
+
+**US-C-07: Revenue list with filters** (Size: S)
+- Revenue tab shows: Date, Description, Amount, Project, Company (derived), Payment Method
+- Filters: date range, project, company
+- Quick stats: total revenue this month, total revenue this quarter
+- **AC**: Given 5 payments across 3 projects, when I filter by Project A, then only Project A payments are shown.
+
+**US-C-08: Profitability dashboard** (Size: L)
+- Profitability tab with three views:
+  - **Per Project**: table with columns — Project Name, Company, Total Costs (allocated), Total Revenue, Profit, Margin %
+  - **Per Client**: aggregate across all projects for each company — Company Name, # Projects, Total Costs, Total Revenue, Profit, Margin %
+  - **Per Tool**: how much each tool costs total and per month — Tool Name, Monthly Cost, Total Cost, # Projects Using
+- Date range selector (this month / this quarter / this year / all time / custom)
+- Color coding: green for profitable (margin > 20%), yellow (0-20%), red (negative margin)
+- **AC**: Given Project A has $200 in allocated costs and $1000 in revenue, when I view per-project profitability, then it shows $800 profit and 80% margin in green. Given Project B has $500 in costs and $0 in revenue, then it shows -$500 and negative margin in red.
+
+**US-C-09: Cost summary on project detail page** (Size: S)
+- On the existing `/projects/[id]` page, add a "Financials" section
+- Shows: total allocated costs, total revenue (payments), profit/margin
+- Link to "View in Costs" to jump to the filtered costs page
+- **AC**: Given Project A has 3 allocated expenses totaling $150 and 2 payments totaling $3000, when I view the project page, then the Financials section shows costs: $150, revenue: $3000, profit: $2850, margin: 95%.
+
+**US-C-10: Deactivate a subscription** (Size: S)
+- "Deactivate" button on subscription expenses sets `isActive = false`
+- Deactivated subscriptions are excluded from "Generate Recurring"
+- Shown with a strikethrough/dimmed style in the expenses table
+- **AC**: Given I deactivate "Old Tool" subscription, when I click "Generate Recurring" next month, then "Old Tool" is not included. The expense still appears in historical views but is visually marked as inactive.
+
+**US-C-11: Monthly burn rate widget on dashboard** (Size: S)
+- On the main `/dashboard` page, add a "Monthly Burn Rate" card
+- Sum of all active subscriptions' monthly-equivalent amounts (annual / 12, quarterly / 3)
+- Shows trend: up/down arrow comparing to last month
+- **AC**: Given 2 monthly subscriptions ($25 + $19) and 1 annual subscription ($120), when I view the dashboard, then monthly burn rate shows $54 ($25 + $19 + $10).
+
 ---
 
 ## Infrastructure Plan
@@ -627,6 +762,7 @@ src/trigger/
 - `web/src/app/(dashboard)/meetings/scheduled/[id]/page.tsx` — Meeting preparation view (Phase 1.5)
 - `web/src/app/(dashboard)/meetings/[id]/review/page.tsx` — Extraction review (the big one)
 - `web/src/app/(dashboard)/companies/[id]/brief/page.tsx` — Investigation results + diff view
+- `web/src/app/(dashboard)/costs/page.tsx` — Cost & Revenue management with tabs (Phase 4)
 
 ### Components
 - `web/src/components/meetings/meeting-table.tsx` — Status-filtered table
@@ -644,11 +780,23 @@ src/trigger/
 - `web/src/components/projects/similar-projects.tsx` — Similarity search results
 - `web/src/components/projects/outcome-form.tsx` — Star rating + outcome text
 - `web/src/components/forms/investigate-button.tsx` — Trigger investigation
+- `web/src/components/costs/expense-table.tsx` — Filterable expenses list (Phase 4)
+- `web/src/components/costs/expense-form.tsx` — Add/edit expense form (Phase 4)
+- `web/src/components/costs/allocation-form.tsx` — Project allocation modal (Phase 4)
+- `web/src/components/costs/revenue-table.tsx` — Filterable payments list (Phase 4)
+- `web/src/components/costs/payment-form.tsx` — Add/edit payment form (Phase 4)
+- `web/src/components/costs/profitability-view.tsx` — Per-project/client/tool profit cards (Phase 4)
+- `web/src/components/costs/generate-recurring.tsx` — Recurring subscription generation modal (Phase 4)
+- `web/src/components/costs/burn-rate-card.tsx` — Monthly burn rate dashboard widget (Phase 4)
 
 ### Sidebar Update
 Add between Companies and Projects:
 ```typescript
 { label: "Meetings", icon: Mic, href: "/meetings" },
+```
+Add after Projects:
+```typescript
+{ label: "Costs", icon: DollarSign, href: "/costs" },
 ```
 
 ---
@@ -671,6 +819,9 @@ Add between Companies and Projects:
 | `src/trigger/lib/interview-guide-prompt.ts` | Create | Claude prompt engineering for interview guides (Phase 1.5) |
 | `trigger.config.ts` | Modify | Add `build.external` if needed |
 | `.github/workflows/ci.yml` | Rewrite | Full CI/CD pipeline |
+| `web/src/app/(dashboard)/costs/page.tsx` | Create | Cost & Revenue management page (Phase 4) |
+| `web/src/app/(dashboard)/projects/[id]/page.tsx` | Modify | Add Financials section (Phase 4) |
+| `web/src/app/(dashboard)/page.tsx` | Modify | Add burn rate widget to dashboard (Phase 4) |
 
 ---
 
@@ -682,7 +833,10 @@ Add between Companies and Projects:
 - Automatic investigation on import (always manual trigger, except via meeting preparation)
 - Real-time embedding updates (on completion or manual only)
 - Custom AI model fine-tuning
-- Billing, invoicing, or CRM features
+- Invoice generation or client-facing billing (internal cost tracking only)
+- Multi-currency conversion (single currency per entry, no FX rates)
+- Automated subscription renewal detection (manual "Generate Recurring" button)
+- Team members table (paidBy is a plain text field)
 - Mobile-responsive UI (desktop-first)
 - Email/Slack notifications
 - Google Calendar integration (manual scheduling in-app — see ADR-011)
@@ -703,6 +857,8 @@ Add between Companies and Projects:
 | Preparation usefulness | > 3.5 avg rating (out of 5) | Average `preparationRating` across completed meetings |
 | Knowledge gap closure | > 60% gaps filled after meeting | Gaps in pre-meeting prep vs post-meeting extraction |
 | Transcript match accuracy | > 90% auto-linked correctly | Manual corrections / total auto-links |
+| Expense tracking coverage | 100% of subscriptions logged | Active subscriptions vs known tool count |
+| Profitability visibility | Every active project has cost + revenue data | Projects with ≥1 expense or payment / active projects |
 
 ---
 
@@ -744,3 +900,14 @@ Add between Companies and Projects:
 3. Click "Use as Template" → project pre-filled with tools + blueprint
 4. Complete a project → rate it 1-5 stars
 5. Next similar search ranks this project higher/lower based on rating
+
+### Phase 4
+1. Go to `/costs` → add a one-time expense (e.g., domain purchase $15) → appears in expenses table
+2. Add a recurring subscription (e.g., Supabase Pro $25/mo linked to Supabase tool) → shows "Recurring" badge
+3. Click "Allocate" on the expense → assign 50% to Project A, 30% to Project B → amounts split correctly
+4. Go to Revenue tab → record a $5000 payment for Project A → appears with company name
+5. Go to Profitability tab → see Project A with costs, revenue, and profit margin in green
+6. Next month → click "Generate Recurring" → 1 subscription auto-generated with last month's allocations
+7. Deactivate old subscription → next "Generate Recurring" skips it
+8. Visit `/projects/[id]` → Financials section shows allocated costs + revenue + profit
+9. Visit `/dashboard` → burn rate card shows monthly subscription total
