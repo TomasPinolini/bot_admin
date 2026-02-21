@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Header } from "@/components/header";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, FolderKanban } from "lucide-react";
-import { getProjectsGrouped } from "@/lib/queries";
+import { Calendar, FolderKanban } from "lucide-react";
+import { getProjectsGrouped, getCompanyOptions } from "@/lib/queries";
 import { statusToBadge, statusLabel, formatShortDate } from "@/lib/utils";
+import { NewProjectButton } from "@/components/forms/new-project-button";
 
 const columnConfig = [
   { key: "planning" as const, title: "Planning" },
@@ -14,7 +14,10 @@ const columnConfig = [
 ];
 
 export default async function ProjectsPage() {
-  const grouped = await getProjectsGrouped();
+  const [grouped, companyOptions] = await Promise.all([
+    getProjectsGrouped(),
+    getCompanyOptions(),
+  ]);
   const totalProjects = Object.values(grouped).flat().length;
 
   return (
@@ -23,7 +26,7 @@ export default async function ProjectsPage() {
         title="Project Board"
         subtitle="View projects grouped by status"
         actions={
-          <Button variant="primary" icon={<Plus size={14} />}>New Project</Button>
+          <NewProjectButton companies={companyOptions} />
         }
       />
 

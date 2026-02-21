@@ -1,7 +1,7 @@
 import { Header } from "@/components/header";
-import { Button } from "@/components/ui/button";
-import { Plus, Layers } from "lucide-react";
+import { Layers } from "lucide-react";
 import { getBlueprints } from "@/lib/queries";
+import { NewBlueprintButton } from "@/components/forms/new-blueprint-button";
 
 export default async function BlueprintsPage() {
   const blueprints = await getBlueprints();
@@ -12,7 +12,7 @@ export default async function BlueprintsPage() {
         title="Blueprints"
         subtitle="Reusable chatbot templates and configurations"
         actions={
-          <Button variant="primary" icon={<Plus size={14} />}>New Blueprint</Button>
+          <NewBlueprintButton />
         }
       />
 
@@ -26,7 +26,7 @@ export default async function BlueprintsPage() {
           {blueprints.map((bp) => (
             <div
               key={bp.id}
-              className="flex flex-col gap-4 bg-bg-card border border-border rounded-lg p-6 hover:border-text-muted transition-colors cursor-pointer"
+              className="flex flex-col gap-4 bg-bg-card border border-border rounded-lg p-6"
             >
               <div className="w-10 h-10 rounded-lg bg-bg-main border border-border flex items-center justify-center">
                 <Layers size={18} className="text-text-secondary" />

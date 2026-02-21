@@ -1,12 +1,16 @@
 import { Header } from "@/components/header";
-import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
-import { Plus, Download, ChevronRight } from "lucide-react";
-import { getDashboardData } from "@/lib/queries";
+import { ChevronRight } from "lucide-react";
+import { getDashboardData, getCompanyOptions } from "@/lib/queries";
 import { timeAgo, statusLabel } from "@/lib/utils";
+import { NewProjectButton } from "@/components/forms/new-project-button";
+import { ExportButton } from "@/components/export-button";
 
 export default async function DashboardPage() {
-  const data = await getDashboardData();
+  const [data, companyOptions] = await Promise.all([
+    getDashboardData(),
+    getCompanyOptions(),
+  ]);
   const { counts, statusDistribution, recentLogs, recentCompanies, recentProjects } = data;
 
   const metrics = [
@@ -46,6 +50,14 @@ export default async function DashboardPage() {
     .sort((a, b) => b.time.getTime() - a.time.getTime())
     .slice(0, 5);
 
+  const exportData = [
+    { metric: "Total Companies", value: counts.companies },
+    { metric: "Active Projects", value: counts.projects },
+    { metric: "Tools Deployed", value: counts.tools },
+    { metric: "Blueprints", value: counts.blueprints },
+    ...statusDistribution.map((s) => ({ metric: `Status: ${statusLabel(s.status)}`, value: s.count })),
+  ];
+
   return (
     <div className="flex flex-col gap-8 p-8 px-10">
       <Header
@@ -53,8 +65,8 @@ export default async function DashboardPage() {
         subtitle="Overview of your chatbot implementations"
         actions={
           <>
-            <Button variant="secondary" icon={<Download size={14} />}>Export</Button>
-            <Button variant="primary" icon={<Plus size={14} />}>New Project</Button>
+            <ExportButton data={exportData} filename="dashboard-summary" />
+            <NewProjectButton companies={companyOptions} />
           </>
         }
       />

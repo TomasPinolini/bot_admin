@@ -4,9 +4,12 @@ import { InputField } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState(false);
+  const router = useRouter();
 
   return (
     <div className="flex h-screen">
@@ -87,18 +90,30 @@ export default function LoginPage() {
                 <input type="checkbox" className="accent-accent" />
                 Remember me
               </label>
-              <button className="text-sm text-accent hover:underline">Forgot password?</button>
+              <button
+                className="text-sm text-accent hover:underline cursor-pointer"
+                onClick={() => setForgotMsg(true)}
+              >
+                Forgot password?
+              </button>
             </div>
+            {forgotMsg && (
+              <p className="text-sm text-text-secondary">Contact your administrator to reset your password.</p>
+            )}
           </div>
 
           <div className="flex flex-col gap-4">
-            <Button variant="primary" className="w-full py-3">Sign in</Button>
+            <Button variant="primary" className="w-full py-3" onClick={() => router.push("/")}>
+              Sign in
+            </Button>
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-border" />
               <span className="text-xs text-text-muted">or</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            <Button variant="secondary" className="w-full py-3">Continue with SSO</Button>
+            <Button variant="secondary" className="w-full py-3" onClick={() => router.push("/")}>
+              Continue with SSO
+            </Button>
           </div>
         </div>
       </div>

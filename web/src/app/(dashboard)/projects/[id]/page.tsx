@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, CheckCircle2, Circle, Clock } from "lucide-react";
+import { CheckCircle2, Circle, Clock } from "lucide-react";
 import { getProject } from "@/lib/queries";
 import { statusToBadge, statusLabel, formatDate, timeAgo } from "@/lib/utils";
+import { EditProjectButton } from "@/components/forms/edit-project-button";
 
 const statusOrder = ["planning", "in_progress", "review", "completed"];
 
@@ -23,6 +23,14 @@ export default async function ProjectDetailPage({
     done: i < currentIndex,
     current: i === currentIndex,
   }));
+
+  const projectForEdit = {
+    id: project.id,
+    name: project.name,
+    description: project.description,
+    status: project.status,
+    targetDate: project.targetDate,
+  };
 
   return (
     <div className="flex flex-col gap-6 p-8 px-10 h-full">
@@ -52,7 +60,7 @@ export default async function ProjectDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <Button variant="secondary" icon={<Pencil size={14} />}>Edit</Button>
+          <EditProjectButton project={projectForEdit} />
         </div>
       </div>
 

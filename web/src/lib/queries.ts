@@ -320,6 +320,17 @@ export async function getAnalyticsData() {
   return { projectsByIndustry, completionRates, toolUsage, projectsByStatus };
 }
 
+// ── Company Options (for dropdowns) ─────────────────────────
+
+export async function getCompanyOptions() {
+  const rows = await db
+    .select({ id: s.companies.id, name: s.companies.name })
+    .from(s.companies)
+    .where(isNull(s.companies.deletedAt))
+    .orderBy(s.companies.name);
+  return rows.map((r) => ({ value: r.id, label: r.name }));
+}
+
 // ── Timeline ───────────────────────────────────────────────
 
 export async function getTimelineProjects() {

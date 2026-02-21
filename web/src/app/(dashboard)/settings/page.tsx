@@ -1,9 +1,32 @@
+"use client";
+
+import { useState } from "react";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { InputField } from "@/components/ui/input";
 import { Save } from "lucide-react";
 
+const notificationItems = ["Email notifications", "Project updates", "New company alerts", "Weekly digest"];
+
 export default function SettingsPage() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
+  const [toggles, setToggles] = useState<Record<string, boolean>>(
+    Object.fromEntries(notificationItems.map((item) => [item, true]))
+  );
+  const [saved, setSaved] = useState(false);
+
+  function handleToggle(item: string) {
+    setToggles((prev) => ({ ...prev, [item]: !prev[item] }));
+  }
+
+  function handleSave() {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
   return (
     <div className="flex flex-col gap-6 p-8 px-10 max-w-3xl">
       <Header
@@ -16,10 +39,10 @@ export default function SettingsPage() {
           Profile
         </h2>
         <div className="grid grid-cols-2 gap-5">
-          <InputField label="First Name" defaultValue="" placeholder="First name" />
-          <InputField label="Last Name" defaultValue="" placeholder="Last name" />
-          <InputField label="Email" type="email" defaultValue="" placeholder="Email address" />
-          <InputField label="Role" defaultValue="" placeholder="Role" />
+          <InputField label="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
+          <InputField label="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
+          <InputField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" />
+          <InputField label="Role" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role" />
         </div>
       </div>
 
@@ -28,19 +51,32 @@ export default function SettingsPage() {
           Notifications
         </h2>
         <div className="flex flex-col gap-4">
-          {["Email notifications", "Project updates", "New company alerts", "Weekly digest"].map((item) => (
-            <label key={item} className="flex items-center justify-between cursor-pointer">
+          {notificationItems.map((item) => (
+            <div key={item} className="flex items-center justify-between">
               <span className="text-sm text-text-primary">{item}</span>
-              <div className="w-10 h-5 rounded-full bg-success relative cursor-pointer">
-                <div className="w-4 h-4 rounded-full bg-white absolute top-0.5 right-0.5" />
-              </div>
-            </label>
+              <button
+                type="button"
+                onClick={() => handleToggle(item)}
+                className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${
+                  toggles[item] ? "bg-success" : "bg-border"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all ${
+                    toggles[item] ? "right-0.5" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
           ))}
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <Button variant="primary" icon={<Save size={14} />}>Save Changes</Button>
+      <div className="flex justify-end items-center gap-3">
+        {saved && <span className="text-sm text-success">Saved!</span>}
+        <Button variant="primary" icon={<Save size={14} />} onClick={handleSave}>
+          Save Changes
+        </Button>
       </div>
     </div>
   );

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Plus } from "lucide-react";
 import { getCompany } from "@/lib/queries";
 import { formatDate, timeAgo, statusToBadge, statusLabel } from "@/lib/utils";
+import { EditCompanyButton } from "@/components/forms/edit-company-button";
+import { NewProjectButton } from "@/components/forms/new-project-button";
 
 export default async function CompanyDetailPage({
   params,
@@ -14,6 +14,15 @@ export default async function CompanyDetailPage({
   const { id } = await params;
   const company = await getCompany(id);
   if (!company) notFound();
+
+  const companyForEdit = {
+    id: company.id,
+    name: company.name,
+    contactName: company.contactName,
+    contactEmail: company.contactEmail,
+    contactPhone: company.contactPhone,
+    website: company.website,
+  };
 
   return (
     <div className="flex flex-col gap-6 p-8 px-10 h-full">
@@ -45,8 +54,11 @@ export default async function CompanyDetailPage({
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <Button variant="secondary" icon={<Pencil size={14} />}>Edit</Button>
-          <Button variant="primary" icon={<Plus size={14} />}>New Project</Button>
+          <EditCompanyButton company={companyForEdit} />
+          <NewProjectButton
+            companies={[{ value: company.id, label: company.name }]}
+            preselectedCompanyId={company.id}
+          />
         </div>
       </div>
 
@@ -88,12 +100,12 @@ export default async function CompanyDetailPage({
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Industry</span>
                 <span className="text-text-primary">
-                  {company.industries.length > 0 ? company.industries.join(", ") : "—"}
+                  {company.industries.length > 0 ? company.industries.join(", ") : "\u2014"}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Contact</span>
-                <span className="text-text-primary">{company.contactEmail ?? "—"}</span>
+                <span className="text-text-primary">{company.contactEmail ?? "\u2014"}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Projects</span>

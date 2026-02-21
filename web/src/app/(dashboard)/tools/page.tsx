@@ -1,8 +1,8 @@
 import { Header } from "@/components/header";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Wrench, ExternalLink } from "lucide-react";
+import { Wrench, ExternalLink } from "lucide-react";
 import { getTools } from "@/lib/queries";
+import { AddToolButton } from "@/components/forms/add-tool-button";
 
 export default async function ToolsPage() {
   const tools = await getTools();
@@ -13,7 +13,7 @@ export default async function ToolsPage() {
         title="Tools"
         subtitle="Manage chatbot development tools and integrations"
         actions={
-          <Button variant="primary" icon={<Plus size={14} />}>Add Tool</Button>
+          <AddToolButton />
         }
       />
 
@@ -39,7 +39,7 @@ export default async function ToolsPage() {
                 </div>
                 <span className="text-sm font-medium text-text-primary">{tool.name}</span>
               </div>
-              <div className="w-40 text-sm text-text-secondary">{tool.category ?? "—"}</div>
+              <div className="w-40 text-sm text-text-secondary">{tool.category ?? "\u2014"}</div>
               <div className="w-28 text-sm text-text-primary text-center">{tool.projectCount}</div>
               <div className="w-24 flex justify-center">
                 <Badge status="active" />
