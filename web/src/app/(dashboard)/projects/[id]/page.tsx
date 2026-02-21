@@ -1,34 +1,38 @@
-import { Header } from "@/components/header";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, ArrowRight, CheckCircle2, Circle, Clock } from "lucide-react";
+import { Pencil, CheckCircle2, Circle, Clock } from "lucide-react";
+import { getProject } from "@/lib/queries";
+import { statusToBadge, statusLabel, formatDate, timeAgo } from "@/lib/utils";
 
-const steps = [
-  { label: "Discovery", done: true },
-  { label: "Design", done: true },
-  { label: "Build", done: true },
-  { label: "Test", done: false },
-  { label: "Deploy", done: false },
-  { label: "Handoff", done: false },
-];
+const statusOrder = ["planning", "in_progress", "review", "completed"];
 
-const timeline = [
-  { title: "Discovery completed", desc: "Requirements gathered, stakeholder interviews done", date: "Jan 20, 2026", status: "done" },
-  { title: "Design approved", desc: "Conversation flows and UI mockups signed off", date: "Feb 1, 2026", status: "done" },
-  { title: "Build phase started", desc: "Development in progress. Frontend + Dialogflow integration", date: "Feb 10, 2026", status: "active" },
-  { title: "Testing phase", desc: "Scheduled for UAT and integration testing", date: "Upcoming", status: "pending" },
-];
+export default async function ProjectDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const project = await getProject(id);
+  if (!project) notFound();
 
-const tools = ["DialogFlow CX", "Twilio", "Pinecone", "Rasa"];
+  const currentIndex = statusOrder.indexOf(project.status);
+  const steps = statusOrder.map((status, i) => ({
+    label: statusLabel(status),
+    done: i < currentIndex,
+    current: i === currentIndex,
+  }));
 
-export default function ProjectDetailPage() {
   return (
     <div className="flex flex-col gap-6 p-8 px-10 h-full">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-text-secondary">Projects</span>
+        <Link href="/projects" className="text-text-secondary hover:text-text-primary transition-colors">
+          Projects
+        </Link>
         <span className="text-text-muted">/</span>
-        <span className="text-text-primary">Acme Corp Chatbot</span>
+        <span className="text-text-primary">{project.name}</span>
       </div>
 
       {/* Header */}
@@ -36,15 +40,19 @@ export default function ProjectDetailPage() {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold font-[family-name:var(--font-heading)] text-text-primary">
-              Acme Corp Chatbot
+              {project.name}
             </h1>
-            <Badge status="active">In Progress</Badge>
+            <Badge status={statusToBadge(project.status)}>
+              {statusLabel(project.status)}
+            </Badge>
           </div>
-          <p className="text-sm text-text-secondary">Acme Corp &middot; E-commerce &middot; Started Jan 15, 2026</p>
+          <p className="text-sm text-text-secondary">
+            {project.companyName}
+            {project.startDate && <> &middot; Started {formatDate(new Date(project.startDate))}</>}
+          </p>
         </div>
         <div className="flex items-center gap-2.5">
           <Button variant="secondary" icon={<Pencil size={14} />}>Edit</Button>
-          <Button variant="primary" icon={<ArrowRight size={14} />}>Next Phase</Button>
         </div>
       </div>
 
@@ -53,16 +61,18 @@ export default function ProjectDetailPage() {
         {steps.map((step, i) => (
           <div key={step.label} className="flex items-center flex-1">
             <div className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                step.done
-                  ? "bg-success text-white"
-                  : i === steps.findIndex((s) => !s.done)
-                    ? "bg-accent text-white"
-                    : "bg-border text-text-muted"
-              }`}>
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                  step.done
+                    ? "bg-success text-white"
+                    : step.current
+                      ? "bg-accent text-white"
+                      : "bg-border text-text-muted"
+                }`}
+              >
                 {step.done ? <CheckCircle2 size={14} /> : i + 1}
               </div>
-              <span className={`text-sm ${step.done ? "text-text-primary" : "text-text-muted"}`}>
+              <span className={`text-sm ${step.done || step.current ? "text-text-primary" : "text-text-muted"}`}>
                 {step.label}
               </span>
             </div>
@@ -84,24 +94,29 @@ export default function ProjectDetailPage() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
-                <span className="text-xs text-text-muted">Bot Type</span>
-                <span className="text-sm text-text-primary">E-commerce Support Bot</span>
+                <span className="text-xs text-text-muted">Company</span>
+                <span className="text-sm text-text-primary">{project.companyName}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-xs text-text-muted">Niche</span>
-                <span className="text-sm text-text-primary">E-commerce / Retail</span>
+                <span className="text-xs text-text-muted">Status</span>
+                <Badge status={statusToBadge(project.status)}>
+                  {statusLabel(project.status)}
+                </Badge>
               </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-text-muted">Overall Status</span>
-                <div className="flex items-center gap-2">
-                  <Badge status="active" />
-                  <span className="text-sm text-text-primary">65%</span>
+              {project.description && (
+                <div className="flex flex-col gap-1 col-span-2">
+                  <span className="text-xs text-text-muted">Description</span>
+                  <span className="text-sm text-text-primary">{project.description}</span>
                 </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-text-muted">Assigned Client</span>
-                <span className="text-sm text-text-primary">Sarah Chen</span>
-              </div>
+              )}
+              {project.targetDate && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-text-muted">Target Date</span>
+                  <span className="text-sm text-text-primary">
+                    {formatDate(new Date(project.targetDate))}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -110,13 +125,20 @@ export default function ProjectDetailPage() {
             <h2 className="text-base font-medium font-[family-name:var(--font-heading)] text-text-primary">
               Assigned Tools
             </h2>
-            <div className="flex gap-2 flex-wrap">
-              {tools.map((tool) => (
-                <span key={tool} className="px-3 py-1.5 text-xs bg-bg-main border border-border rounded text-text-secondary">
-                  {tool}
-                </span>
-              ))}
-            </div>
+            {project.tools.length === 0 ? (
+              <p className="text-xs text-text-muted">No tools assigned</p>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                {project.tools.map((tool) => (
+                  <span
+                    key={tool}
+                    className="px-3 py-1.5 text-xs bg-bg-main border border-border rounded text-text-secondary"
+                  >
+                    {tool}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -125,27 +147,33 @@ export default function ProjectDetailPage() {
           <h2 className="text-base font-medium font-[family-name:var(--font-heading)] text-text-primary">
             Progress Timeline
           </h2>
-          <div className="flex flex-col gap-5">
-            {timeline.map((entry) => (
-              <div key={entry.title} className="flex gap-3">
-                <div className="flex flex-col items-center">
-                  {entry.status === "done" ? (
-                    <CheckCircle2 size={16} className="text-success shrink-0" />
-                  ) : entry.status === "active" ? (
-                    <Clock size={16} className="text-accent shrink-0" />
-                  ) : (
-                    <Circle size={16} className="text-text-muted shrink-0" />
-                  )}
-                  <div className="w-px flex-1 bg-border mt-1" />
+          {project.logs.length === 0 ? (
+            <p className="text-xs text-text-muted">No progress logged yet</p>
+          ) : (
+            <div className="flex flex-col gap-5">
+              {project.logs.map((entry) => (
+                <div key={entry.id} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    {entry.status === "completed" ? (
+                      <CheckCircle2 size={16} className="text-success shrink-0" />
+                    ) : entry.status === "in_progress" ? (
+                      <Clock size={16} className="text-accent shrink-0" />
+                    ) : (
+                      <Circle size={16} className="text-text-muted shrink-0" />
+                    )}
+                    <div className="w-px flex-1 bg-border mt-1" />
+                  </div>
+                  <div className="flex flex-col gap-1 pb-4">
+                    <span className="text-sm font-medium text-text-primary">{entry.phase}</span>
+                    {entry.note && (
+                      <span className="text-xs text-text-muted leading-relaxed">{entry.note}</span>
+                    )}
+                    <span className="text-xs text-text-muted mt-1">{formatDate(entry.loggedAt)}</span>
+                  </div>
                 </div>
-                <div className="flex flex-col gap-1 pb-4">
-                  <span className="text-sm font-medium text-text-primary">{entry.title}</span>
-                  <span className="text-xs text-text-muted leading-relaxed">{entry.desc}</span>
-                  <span className="text-xs text-text-muted mt-1">{entry.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

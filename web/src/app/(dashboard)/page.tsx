@@ -1,32 +1,51 @@
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Download, ChevronRight } from "lucide-react";
+import { getDashboardData } from "@/lib/queries";
+import { timeAgo, statusLabel } from "@/lib/utils";
 
-const metrics = [
-  { label: "Total Companies", value: "47", delta: "+5 this month" },
-  { label: "Active Projects", value: "128", delta: "+12 this month" },
-  { label: "Tools Deployed", value: "89", delta: "+8 this month" },
-  { label: "Blueprints", value: "34", delta: "+3 this month" },
-];
+export default async function DashboardPage() {
+  const data = await getDashboardData();
+  const { counts, statusDistribution, recentLogs, recentCompanies, recentProjects } = data;
 
-const chartData = [
-  { label: "Planning", value: 65, color: "bg-accent" },
-  { label: "In Progress", value: 85, color: "bg-info" },
-  { label: "Review", value: 45, color: "bg-success" },
-  { label: "Completed", value: 95, color: "bg-warning" },
-];
+  const metrics = [
+    { label: "Total Companies", value: String(counts.companies), delta: "total" },
+    { label: "Active Projects", value: String(counts.projects), delta: "total" },
+    { label: "Tools Deployed", value: String(counts.tools), delta: "total" },
+    { label: "Blueprints", value: String(counts.blueprints), delta: "total" },
+  ];
 
-const activities = [
-  { icon: "text-info", text: "Acme Corp project on Activated", time: "2 hours ago", badge: "active" as const },
-  { icon: "text-success", text: "New company TechFlow Inc", time: "4 hours ago", badge: "completed" as const },
-  { icon: "text-warning", text: "Blueprint applied: E-commerce Bot", time: "6 hours ago", badge: "pending" as const },
-  { icon: "text-accent", text: "Tool deployed: DialogFlow CX", time: "8 hours ago", badge: "active" as const },
-  { icon: "text-text-secondary", text: "OrderBot phase: Deploy", time: "12 hours ago", badge: "completed" as const },
-];
+  const statusColors: Record<string, string> = {
+    planning: "bg-accent",
+    in_progress: "bg-info",
+    review: "bg-success",
+    completed: "bg-warning",
+  };
 
-export default function DashboardPage() {
+  const maxCount = Math.max(...statusDistribution.map((s) => s.count), 1);
+
+  // Merge recent activity from logs, companies, and projects
+  const activity = [
+    ...recentLogs.map((l) => ({
+      text: `${l.projectName}: ${l.phase}${l.note ? ` — ${l.note}` : ""}`,
+      time: l.loggedAt,
+      color: "bg-info",
+    })),
+    ...recentCompanies.map((c) => ({
+      text: `New company: ${c.name}`,
+      time: c.createdAt,
+      color: "bg-success",
+    })),
+    ...recentProjects.map((p) => ({
+      text: `New project: ${p.name}`,
+      time: p.createdAt,
+      color: "bg-accent",
+    })),
+  ]
+    .sort((a, b) => b.time.getTime() - a.time.getTime())
+    .slice(0, 5);
+
   return (
     <div className="flex flex-col gap-8 p-8 px-10">
       <Header
@@ -55,23 +74,30 @@ export default function DashboardPage() {
             <h2 className="text-base font-medium font-[family-name:var(--font-heading)] text-text-primary">
               Project Status
             </h2>
-            <button className="text-xs text-text-muted hover:text-text-secondary transition-colors">
-              This Month
-            </button>
           </div>
-          <div className="flex items-end gap-6 flex-1 pt-4">
-            {chartData.map((bar) => (
-              <div key={bar.label} className="flex flex-col items-center gap-3 flex-1">
-                <div className="w-full flex items-end justify-center" style={{ height: 200 }}>
-                  <div
-                    className={`w-full max-w-16 ${bar.color} rounded-t`}
-                    style={{ height: `${bar.value}%` }}
-                  />
-                </div>
-                <span className="text-xs text-text-muted">{bar.label}</span>
-              </div>
-            ))}
-          </div>
+          {statusDistribution.length > 0 ? (
+            <div className="flex items-end gap-6 flex-1 pt-4">
+              {(["planning", "in_progress", "review", "completed"] as const).map((status) => {
+                const item = statusDistribution.find((s) => s.status === status);
+                const value = item ? (item.count / maxCount) * 100 : 0;
+                return (
+                  <div key={status} className="flex flex-col items-center gap-3 flex-1">
+                    <div className="w-full flex items-end justify-center" style={{ height: 200 }}>
+                      <div
+                        className={`w-full max-w-16 ${statusColors[status] || "bg-accent"} rounded-t`}
+                        style={{ height: `${Math.max(value, 2)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-text-muted">{statusLabel(status)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center flex-1 text-sm text-text-muted">
+              No projects yet
+            </div>
+          )}
         </div>
 
         {/* Activity Panel */}
@@ -80,21 +106,24 @@ export default function DashboardPage() {
             <h2 className="text-base font-medium font-[family-name:var(--font-heading)] text-text-primary">
               Recent Activity
             </h2>
-            <button className="text-xs text-text-muted hover:text-text-secondary transition-colors flex items-center gap-1">
-              View All <ChevronRight size={12} />
-            </button>
           </div>
-          <div className="flex flex-col gap-3">
-            {activities.map((a, i) => (
-              <div key={i} className="flex items-start gap-3 py-2">
-                <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${a.icon.replace("text-", "bg-")}`} />
-                <div className="flex flex-col gap-1 min-w-0">
-                  <span className="text-sm text-text-primary truncate">{a.text}</span>
-                  <span className="text-xs text-text-muted">{a.time}</span>
+          {activity.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {activity.map((a, i) => (
+                <div key={i} className="flex items-start gap-3 py-2">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${a.color}`} />
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <span className="text-sm text-text-primary truncate">{a.text}</span>
+                    <span className="text-xs text-text-muted">{timeAgo(a.time)}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center flex-1 text-sm text-text-muted">
+              No recent activity
+            </div>
+          )}
         </div>
       </div>
     </div>

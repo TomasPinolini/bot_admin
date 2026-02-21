@@ -68,8 +68,8 @@ export function Sidebar() {
       <div className="flex items-center gap-2.5 px-5">
         <div className="w-8 h-8 rounded-full bg-border" />
         <div className="flex flex-col">
-          <span className="text-sm text-text-primary">John Doe</span>
-          <span className="text-xs text-text-muted">Admin</span>
+          <span className="text-sm text-text-primary">User</span>
+          <span className="text-xs text-text-muted">Bot Admin</span>
         </div>
       </div>
     </aside>

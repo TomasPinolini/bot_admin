@@ -1,105 +1,88 @@
+import Link from "next/link";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, Calendar } from "lucide-react";
+import { Plus, Calendar, FolderKanban } from "lucide-react";
+import { getProjectsGrouped } from "@/lib/queries";
+import { statusToBadge, statusLabel, formatShortDate } from "@/lib/utils";
 
-interface KanbanCard {
-  title: string;
-  company: string;
-  status: "active" | "pending" | "completed" | "blocked";
-  assignees: number;
-  dueDate: string;
-}
-
-const columns: { title: string; count: number; cards: KanbanCard[] }[] = [
-  {
-    title: "Planning",
-    count: 3,
-    cards: [
-      { title: "RetailBot Pro", company: "FreshMart", status: "pending", assignees: 2, dueDate: "Mar 15" },
-      { title: "HealthBot Pro", company: "MediHealth", status: "pending", assignees: 1, dueDate: "Apr 1" },
-      { title: "BizChat Assistant", company: "NextGen", status: "blocked", assignees: 3, dueDate: "Mar 22" },
-    ],
-  },
-  {
-    title: "In Progress",
-    count: 3,
-    cards: [
-      { title: "Acme Support Bot", company: "Acme Corp", status: "active", assignees: 3, dueDate: "Feb 28" },
-      { title: "NovaCare CRM Bot", company: "NovaCare", status: "active", assignees: 2, dueDate: "Mar 10" },
-      { title: "TechFlow Sales Bot", company: "TechFlow", status: "active", assignees: 2, dueDate: "Mar 5" },
-    ],
-  },
-  {
-    title: "Review",
-    count: 2,
-    cards: [
-      { title: "GlobalBank Advisor", company: "GlobalBank", status: "pending", assignees: 4, dueDate: "Feb 20" },
-      { title: "AutoParts Helpdesk", company: "AutoParts", status: "pending", assignees: 2, dueDate: "Feb 25" },
-    ],
-  },
-  {
-    title: "Completed",
-    count: 3,
-    cards: [
-      { title: "FinanceApp Bot", company: "FinanceApp", status: "completed", assignees: 3, dueDate: "Feb 10" },
-      { title: "TravelEase Concierge", company: "TravelEase", status: "completed", assignees: 2, dueDate: "Feb 5" },
-      { title: "PropertyBot", company: "RealEstate", status: "completed", assignees: 1, dueDate: "Jan 30" },
-    ],
-  },
+const columnConfig = [
+  { key: "planning" as const, title: "Planning" },
+  { key: "in_progress" as const, title: "In Progress" },
+  { key: "review" as const, title: "Review" },
+  { key: "completed" as const, title: "Completed" },
 ];
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const grouped = await getProjectsGrouped();
+  const totalProjects = Object.values(grouped).flat().length;
+
   return (
     <div className="flex flex-col gap-6 p-8 h-full">
       <Header
         title="Project Board"
-        subtitle="Drag and drop projects between stages"
+        subtitle="View projects grouped by status"
         actions={
           <Button variant="primary" icon={<Plus size={14} />}>New Project</Button>
         }
       />
 
-      {/* Kanban */}
-      <div className="flex gap-4 flex-1 overflow-x-auto pb-2">
-        {columns.map((col) => (
-          <div key={col.title} className="flex flex-col gap-3 flex-1 min-w-[280px]">
-            {/* Column header */}
-            <div className="flex items-center gap-2 px-1">
-              <h3 className="text-sm font-medium text-text-primary">{col.title}</h3>
-              <span className="text-xs text-text-muted bg-bg-card px-2 py-0.5 rounded">{col.count}</span>
-            </div>
-
-            {/* Cards */}
-            <div className="flex flex-col gap-3">
-              {col.cards.map((card) => (
-                <div
-                  key={card.title}
-                  className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-4 hover:border-text-muted transition-colors cursor-pointer"
-                >
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-text-primary">{card.title}</span>
-                    <span className="text-xs text-text-muted">{card.company}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Badge status={card.status} />
-                    <div className="flex items-center gap-3 text-text-muted">
-                      <div className="flex items-center gap-1">
-                        <Users size={12} />
-                        <span className="text-xs">{card.assignees}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar size={12} />
-                        <span className="text-xs">{card.dueDate}</span>
-                      </div>
-                    </div>
-                  </div>
+      {totalProjects === 0 ? (
+        <div className="flex flex-col items-center justify-center flex-1 gap-3 text-text-muted">
+          <FolderKanban size={40} className="opacity-30" />
+          <p className="text-sm">No projects yet</p>
+        </div>
+      ) : (
+        <div className="flex gap-4 flex-1 overflow-x-auto pb-2">
+          {columnConfig.map((col) => {
+            const cards = grouped[col.key];
+            return (
+              <div key={col.key} className="flex flex-col gap-3 flex-1 min-w-[280px]">
+                <div className="flex items-center gap-2 px-1">
+                  <h3 className="text-sm font-medium text-text-primary">{col.title}</h3>
+                  <span className="text-xs text-text-muted bg-bg-card px-2 py-0.5 rounded">
+                    {cards.length}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+
+                <div className="flex flex-col gap-3">
+                  {cards.length === 0 ? (
+                    <div className="flex items-center justify-center border border-dashed border-border rounded-lg p-6 text-xs text-text-muted">
+                      No projects
+                    </div>
+                  ) : (
+                    cards.map((card) => (
+                      <Link
+                        key={card.id}
+                        href={`/projects/${card.id}`}
+                        className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-4 hover:border-text-muted transition-colors cursor-pointer"
+                      >
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-sm font-medium text-text-primary">{card.name}</span>
+                          <span className="text-xs text-text-muted">{card.companyName}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Badge status={statusToBadge(card.status)}>
+                            {statusLabel(card.status)}
+                          </Badge>
+                          {card.targetDate && (
+                            <div className="flex items-center gap-1 text-text-muted">
+                              <Calendar size={12} />
+                              <span className="text-xs">
+                                {formatShortDate(new Date(card.targetDate))}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -16,10 +16,10 @@ export default function SettingsPage() {
           Profile
         </h2>
         <div className="grid grid-cols-2 gap-5">
-          <InputField label="First Name" defaultValue="John" />
-          <InputField label="Last Name" defaultValue="Doe" />
-          <InputField label="Email" type="email" defaultValue="john@botadmin.com" />
-          <InputField label="Role" defaultValue="Admin" />
+          <InputField label="First Name" defaultValue="" placeholder="First name" />
+          <InputField label="Last Name" defaultValue="" placeholder="Last name" />
+          <InputField label="Email" type="email" defaultValue="" placeholder="Email address" />
+          <InputField label="Role" defaultValue="" placeholder="Role" />
         </div>
       </div>
 
