@@ -181,7 +181,8 @@ Both: services/ share the same Zod types and validation logic
 
 ```
 PRE-MEETING FLOW:
-  Developer schedules upcoming meeting → links to company
+  Developer schedules meeting (in-app or via Google Calendar → auto-synced)
+  → Links to company (auto if created in-app, manual if imported from calendar)
   → Auto-triggers Company Investigation (web scraping + enrichment)
   → AI generates tailored interview guide (smart questions, knowledge gaps, topics)
   → Developer reviews preparation materials before meeting
@@ -214,7 +215,7 @@ FINANCIAL TRACKING:
 |---|:---:|:---:|:---:|:---:|---|
 | **Phase 0: Infrastructure** | 8 | 10 | 7 | 560 | ~3 days |
 | **Phase 1: Fireflies + AI Extraction** | 9 | 8 | 6 | 432 | ~8 days |
-| **Phase 1.5: Meeting Preparation** | 8 | 8 | 6 | 384 | ~8-10 days |
+| **Phase 1.5: Meeting Preparation + Google Calendar** | 8 | 8 | 5 | 320 | ~11-13 days |
 | **Phase 2: Company Investigation** | 7 | 6 | 4 | 168 | ~6 days |
 | **Phase 3: Blueprint Matching & Reuse** | 8 | 7 | 5 | 280 | ~5 days |
 | **Phase 4: Cost & Revenue Management** | 7 | 9 | 7 | 441 | ~5-6 days |
@@ -311,13 +312,19 @@ FINANCIAL TRACKING:
 
 **Consequence**: Requires `pg_trgm` extension on Supabase (`CREATE EXTENSION IF NOT EXISTS pg_trgm`). Most matches will be high-confidence if meetings are properly linked to companies.
 
-### ADR-011: No Google Calendar Integration (Deferred)
+### ADR-011: Google Calendar Integration — OAuth + Dedicated Calendar
 
-**Decision**: Build scheduling directly in the app. Do not integrate with Google Calendar.
+**Decision**: Two-way sync with Google Calendar via standard OAuth. Meetings created in-app push to a dedicated Google Calendar; events added to that calendar sync back into the app.
 
-**Why**: Google Calendar OAuth adds 2-3 days of implementation complexity (consent screens, token refresh, webhook subscriptions). At the expected volume of 10-20 meetings/month, manual scheduling in-app takes seconds. Calendar sync can be added later as a Phase 4+ enhancement if needed.
+**Auth**: Manual OAuth flow using `googleapis` library (no NextAuth — app is single-user with no auth system). Tokens stored in a `google_calendar_tokens` DB table. Automatic refresh on expiry.
 
-**Consequence**: Developer must enter meeting details in two places (Google Calendar + app). Acceptable tradeoff for shipping faster.
+**Dedicated calendar**: On first connect, user selects an existing calendar or creates a new "Client Meetings" calendar. Only events on that calendar participate in sync.
+
+**Sync direction**: App → Google is immediate (server action creates/updates/deletes event on save). Google → App is polled via Trigger.dev scheduled task every 10 minutes using Google Calendar's incremental sync (`syncToken`), consistent with ADR-002 (Fireflies polling pattern).
+
+**Conflict resolution**: Last write wins. At 10-20 meetings/month with a single user, conflicts are effectively impossible.
+
+**Consequence**: New env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. New dep `googleapis` in `web/package.json`. New `google_calendar_tokens` table. New column `googleCalendarEventId` on `scheduled_meetings`. Google Calendar API is free within quotas (1M queries/day).
 
 ### ADR-012: Cost Tracking — Single Expenses Table with Allocation Splits
 
@@ -326,6 +333,14 @@ FINANCIAL TRACKING:
 **Why**: A unified expense model avoids the complexity of separate subscription-tracking infrastructure (no cron jobs, no auto-generated entries). Subscriptions are simply recurring expenses logged once per billing cycle — a "Generate Recurring" button pre-fills this month's entries from last month's active subscriptions. This keeps the developer in control and aware of all costs.
 
 **Consequence**: Monthly recurring expenses require a manual action (clicking "Generate Recurring"). At 10-20 subscriptions, this takes ~30 seconds per month. If it becomes tedious, automation via Trigger.dev `schedules.task` can be added later. The `paidBy` field is plain text (dev name) — no team_members table needed at current scale.
+
+### ADR-013: Google Calendar Sync — Polling with Incremental Sync Token
+
+**Decision**: Poll Google Calendar API via Trigger.dev `schedules.task` every 10 min using incremental sync (`syncToken`) rather than push notifications (webhooks).
+
+**Why**: Push notifications require a verified public HTTPS endpoint and domain verification. Polling with `syncToken` is efficient (returns only changes since last sync), matches the Fireflies polling approach, and reuses existing Trigger.dev infrastructure. At meeting volume of 10-20/month, polling every 10 min is more than adequate.
+
+**Consequence**: Up to 10 min delay for Google → App sync. Acceptable for meeting scheduling.
 
 ---
 
@@ -375,9 +390,22 @@ agenda                text[] (agenda items)
 status                text NOT NULL DEFAULT 'scheduled'
                       -- scheduled | prepared | in_progress | completed | cancelled
 meetingId             text FK → meetings.id (nullable, linked after Fireflies transcript match)
+googleCalendarEventId text (nullable, set when synced to/from Google Calendar)
 preparationStatus     text NOT NULL DEFAULT 'not_started'
                       -- not_started | generating | ready | failed
 createdAt / updatedAt timestamptz
+```
+
+**`google_calendar_tokens`** (Phase 1.5)
+```
+id              text PK (prefix: gt_)
+accessToken     text NOT NULL
+refreshToken    text NOT NULL
+expiresAt       timestamptz NOT NULL
+scope           text NOT NULL
+calendarId      text (selected dedicated calendar ID)
+syncToken       text (Google Calendar incremental sync token)
+createdAt / updatedAt   timestamptz
 ```
 
 **`meeting_preparations`** (Phase 1.5)
@@ -514,8 +542,8 @@ deletedAt       timestamptz
 Add to both `web/src/lib/ids.ts` and `src/utils/id.ts`:
 ```
 meeting: "mt", meetingExtraction: "mx", scheduledMeeting: "sm",
-meetingPreparation: "mp", companyBrief: "cb", projectEmbedding: "pe",
-expense: "ex", expenseAllocation: "ea", payment: "py"
+meetingPreparation: "mp", googleCalendarToken: "gt", companyBrief: "cb",
+projectEmbedding: "pe", expense: "ex", expenseAllocation: "ea", payment: "py"
 ```
 
 ### PostgreSQL Extensions
@@ -623,7 +651,34 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 - Form at `/meetings/schedule` with fields: company (select), title, date/time, duration, type (discovery/follow-up/kickoff/review/general), location, notes, agenda items
 - Company is required — this is how the system knows who to prepare for
 - Saves to `scheduled_meetings` with status `scheduled`
-- **AC**: Given I fill all required fields and select a company, when I submit, then a scheduled meeting is created with status `scheduled` and appears in the meetings list. Given I leave company blank, when I submit, then validation error is shown.
+- If Google Calendar is connected, also creates a corresponding event on the dedicated calendar and stores `googleCalendarEventId`
+- If Google Calendar is not connected, works as before (app-only)
+- **AC**: Given I fill all required fields and select a company, when I submit, then a scheduled meeting is created with status `scheduled` and appears in the meetings list. Given Google Calendar is connected, then the event also appears on the dedicated calendar. Given I leave company blank, when I submit, then validation error is shown.
+
+**US-MP-01a: Connect Google Calendar** (Size: M)
+- "Connect Google Calendar" button in Settings page initiates standard OAuth flow
+- Requests `calendar.readonly` + `calendar.events` scopes
+- On successful callback, stores tokens in `google_calendar_tokens` table
+- After connecting, user selects an existing calendar or creates a new "Client Meetings" calendar as the dedicated sync calendar
+- Settings page shows connection status: connected calendar name, last sync time, "Disconnect" button
+- Disconnect clears tokens from DB (does not delete calendar or events)
+- If token refresh fails (revoked access), show "Reconnect" prompt on Settings page and meeting pages
+- **AC**: Given I click "Connect Google Calendar", when OAuth completes, then tokens are stored and I can select a calendar. Given I click "Disconnect", then tokens are removed and sync stops. Given my token is revoked, then I see a "Reconnect" prompt.
+
+**US-MP-01b: Sync events from Google Calendar** (Size: M)
+- Trigger.dev `schedules.task` polls the dedicated calendar every 10 min using incremental sync (`syncToken`)
+- New events on the dedicated calendar create `scheduled_meetings` rows with status `pending_company_link` — user must link a company before preparation can generate
+- Updated events on the calendar update the corresponding `scheduled_meetings` row
+- Deleted events on the calendar mark the corresponding row as `cancelled`
+- Deduplication via `googleCalendarEventId` — events already synced are skipped
+- If dedicated calendar is deleted, task logs error and shows "Reconfigure calendar" prompt in Settings
+- **AC**: Given I create an event on the dedicated Google Calendar, when sync runs, then a scheduled meeting appears in the app with status `pending_company_link`. Given I delete a synced event from Google Calendar, when sync runs, then the scheduled meeting is marked `cancelled`.
+
+**US-MP-01c: Push meeting changes to Google Calendar** (Size: S)
+- When a scheduled meeting is created, edited, or cancelled in-app, the corresponding Google Calendar event is created, updated, or deleted
+- If Google API call fails (network, token expired), meeting is still saved locally — sync retries on next poll cycle
+- Editing meeting title, date, duration, or location in-app updates the Google Calendar event
+- **AC**: Given I edit a meeting's date in the app, when I save, then the Google Calendar event updates. Given Google API is unreachable, when I save, then the meeting saves locally and syncs later.
 
 **US-MP-02: View upcoming and past meetings in unified list** (Size: S)
 - `/meetings` page shows two sections: "Upcoming" (scheduled meetings sorted by date ascending) and "Past" (Fireflies transcripts sorted by date descending)
@@ -860,6 +915,8 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 | `FIREFLIES_API_KEY` | - | Yes | Yes |
 | `OPENAI_API_KEY` | Yes | Yes | Yes |
 | `TRIGGER_SECRET_KEY` | Yes | N/A | Yes |
+| `GOOGLE_CLIENT_ID` | Yes | - | Yes |
+| `GOOGLE_CLIENT_SECRET` | Yes | - | Yes |
 | `SENTRY_DSN` | Yes | Yes | Optional |
 
 ### GitHub Actions CI/CD
@@ -885,6 +942,7 @@ Vercel auto-deploys via GitHub integration
 
 **`web/package.json`** (Next.js):
 - `openai` — Query-time embedding generation for similarity search
+- `googleapis` — Google Calendar API client
 
 ### Cost Estimate
 
@@ -895,6 +953,7 @@ Vercel auto-deploys via GitHub integration
 | Trigger.dev Free | $0 |
 | Claude API (~100 extractions + ~20 interview guides) | ~$6-28 |
 | Fireflies Business | $19/seat |
+| Google Calendar API | $0 |
 | Sentry Free | $0 |
 | **Total** | **~$50-73** |
 
@@ -924,6 +983,7 @@ Vercel auto-deploys via GitHub integration
 - `web/src/components/meetings/discussion-topics.tsx` — Suggested talking points (Phase 1.5)
 - `web/src/components/meetings/schedule-form.tsx` — Meeting scheduling form (Phase 1.5)
 - `web/src/components/meetings/preparation-rating.tsx` — Post-meeting prep effectiveness rating (Phase 1.5)
+- `web/src/components/settings/google-calendar-connect.tsx` — OAuth connect/disconnect + calendar picker (Phase 1.5)
 - `web/src/components/briefs/brief-diff.tsx` — Current vs discovered diff view
 - `web/src/components/briefs/brief-section.tsx` — Expandable brief section
 - `web/src/components/projects/similar-projects.tsx` — Similarity search results
@@ -966,6 +1026,11 @@ Add after Projects:
 | `src/trigger/generate-interview-guide.ts` | Create | Claude interview guide generation (Phase 1.5) |
 | `src/trigger/lib/match-transcript.ts` | Create | Fireflies → scheduled meeting matching (Phase 1.5) |
 | `src/trigger/lib/interview-guide-prompt.ts` | Create | Claude prompt engineering for interview guides (Phase 1.5) |
+| `web/src/lib/calendar.ts` | Create | Google Calendar API client + sync logic (Phase 1.5) |
+| `web/src/app/api/google/auth/route.ts` | Create | OAuth initiation (Phase 1.5) |
+| `web/src/app/api/google/callback/route.ts` | Create | OAuth callback + token storage (Phase 1.5) |
+| `src/trigger/sync-google-calendar.ts` | Create | Scheduled Google Calendar polling (Phase 1.5) |
+| `web/src/app/(dashboard)/settings/page.tsx` | Rewrite | Add Google Calendar connection section (Phase 1.5) |
 | `trigger.config.ts` | Modify | Add `build.external` if needed |
 | `.github/workflows/ci.yml` | Rewrite | Full CI/CD pipeline |
 | `web/src/app/(dashboard)/costs/page.tsx` | Create | Cost & Revenue management page (Phase 4) |
@@ -988,7 +1053,8 @@ Add after Projects:
 - Team members table (paidBy is a plain text field)
 - Mobile-responsive UI (desktop-first)
 - Email/Slack notifications
-- Google Calendar integration (manual scheduling in-app — see ADR-011)
+- Google Calendar push notifications / webhooks (polling with syncToken is sufficient — see ADR-013)
+- Multi-calendar sync (single dedicated calendar only)
 - Meeting preparation audit trail / versioning (replaced in place — see ADR-008)
 - Automatic meeting scheduling from Fireflies (Fireflies API doesn't expose calendar data)
 
@@ -1040,6 +1106,12 @@ Add after Projects:
 6. Click "Export" → clean printable PDF of preparation materials
 7. After meeting, Fireflies transcript syncs → auto-links to scheduled meeting (if confidence > 0.6)
 8. Scheduled meeting status transitions to `completed` → rate preparation effectiveness (1-5 stars)
+9. Go to Settings → click "Connect Google Calendar" → complete OAuth flow
+10. Select or create dedicated calendar → connection confirmed
+11. Create a meeting in-app → verify it appears on Google Calendar
+12. Create an event on dedicated Google Calendar → within 10 min it appears in app as pending company link
+13. Edit meeting in-app → Google Calendar event updates
+14. Delete event in Google Calendar → scheduled meeting marked cancelled after next sync
 
 ### Phase 2
 1. Go to `/companies/[id]` → click "Investigate"
