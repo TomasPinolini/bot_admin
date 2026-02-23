@@ -6,6 +6,8 @@ import { timeAgo, statusLabel } from "@/lib/utils";
 import { NewProjectButton } from "@/components/forms/new-project-button";
 import { ExportButton } from "@/components/export-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const [data, companyOptions] = await Promise.all([
     getDashboardData(),

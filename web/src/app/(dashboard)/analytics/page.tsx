@@ -2,6 +2,8 @@ import { Header } from "@/components/header";
 import { getAnalyticsData } from "@/lib/queries";
 import { statusLabel } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 const barColors = ["bg-accent", "bg-info", "bg-success", "bg-warning", "bg-error"];
 const dotColors = ["bg-info", "bg-accent", "bg-success", "bg-warning", "bg-error"];
 

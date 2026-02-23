@@ -3,6 +3,8 @@ import { Layers } from "lucide-react";
 import { getBlueprints } from "@/lib/queries";
 import { NewBlueprintButton } from "@/components/forms/new-blueprint-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function BlueprintsPage() {
   const blueprints = await getBlueprints();
 

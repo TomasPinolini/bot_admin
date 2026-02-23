@@ -4,6 +4,8 @@ import { Wrench, ExternalLink } from "lucide-react";
 import { getTools } from "@/lib/queries";
 import { AddToolButton } from "@/components/forms/add-tool-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function ToolsPage() {
   const tools = await getTools();
 

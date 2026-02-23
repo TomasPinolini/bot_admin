@@ -6,6 +6,8 @@ import { getProject } from "@/lib/queries";
 import { statusToBadge, statusLabel, formatDate, timeAgo } from "@/lib/utils";
 import { EditProjectButton } from "@/components/forms/edit-project-button";
 
+export const dynamic = "force-dynamic";
+
 const statusOrder = ["planning", "in_progress", "review", "completed"];
 
 export default async function ProjectDetailPage({

@@ -6,6 +6,8 @@ import { ExportButton } from "@/components/export-button";
 import { CompanyTable } from "@/components/company-table";
 import { formatDate } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default async function CompaniesPage() {
   const companies = await getCompanies();
 

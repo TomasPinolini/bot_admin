@@ -6,6 +6,8 @@ import { getProjectsGrouped, getCompanyOptions } from "@/lib/queries";
 import { statusToBadge, statusLabel, formatShortDate } from "@/lib/utils";
 import { NewProjectButton } from "@/components/forms/new-project-button";
 
+export const dynamic = "force-dynamic";
+
 const columnConfig = [
   { key: "planning" as const, title: "Planning" },
   { key: "in_progress" as const, title: "In Progress" },

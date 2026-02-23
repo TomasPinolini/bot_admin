@@ -7,6 +7,8 @@ import { EditCompanyButton } from "@/components/forms/edit-company-button";
 import { NewProjectButton } from "@/components/forms/new-project-button";
 import { ManageCompanyCatalogButton } from "@/components/forms/manage-company-catalog-button";
 
+export const dynamic = "force-dynamic";
+
 export default async function CompanyDetailPage({
   params,
 }: {

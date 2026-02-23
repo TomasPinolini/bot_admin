@@ -3,6 +3,8 @@ import { getTimelineProjects } from "@/lib/queries";
 import { statusLabel } from "@/lib/utils";
 import { CalendarDays } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 const statusColorMap: Record<string, string> = {
   planning: "bg-warning",
   in_progress: "bg-info",
