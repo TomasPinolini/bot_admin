@@ -272,13 +272,13 @@ FINANCIAL TRACKING:
 
 **Why**: Full transcripts can be 10,000+ words per meeting. The AI summary contains sufficient information for Claude extraction. Fireflies retains transcripts on their platform.
 
-### ADR-006: Investigation — HTTP Fetch + Claude Extraction (Hybrid)
+### ADR-006: Investigation — Firecrawl + Claude Extraction
 
-**Decision**: Use lightweight HTTP fetching (cheerio for HTML parsing) to grab web page content, then pass text to Claude for structured extraction. No headless browser.
+**Decision**: Use Firecrawl REST API to scrape and extract clean markdown from web pages, then pass to Claude for structured entity extraction. No headless browser or manual HTML parsing.
 
-**Sources**: Company website (home + about + services pages), tech stack detection (headers/meta tags), domain WHOIS, social media links from HTML. Google Business and review sites as optional additions.
+**Sources**: Company website (home + about + services pages), tech stack detection (headers/meta tags), domain WHOIS, social media links. Google Business and review sites as optional additions.
 
-**Why**: Third-party enrichment APIs (Clearbit, Apollo) are expensive. Headless browsers are heavy. The hybrid approach is lightweight and the Claude extraction step produces high-quality structured output from raw HTML text.
+**Why**: Third-party enrichment APIs (Clearbit, Apollo) are expensive. Firecrawl handles JS-rendered pages, strips ads/nav/boilerplate, and returns clean markdown optimized for LLM consumption — eliminating the need for cheerio HTML parsing. Free tier provides 500 pages/month, more than sufficient for expected investigation volume (~20-50 pages/month). The Claude extraction step produces high-quality structured output from the clean markdown.
 
 ### ADR-007: Scheduled Meetings — Separate Table from Fireflies Meetings
 
@@ -570,323 +570,323 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 
 ### Phase 0: Infrastructure
 
-**US-P0-01: Deploy web app to Vercel** (Size: M)
-- Import GitHub repo in Vercel, set Root Directory to `web`
-- Configure environment variables (DATABASE_URL with Supavisor pooler URL port 6543)
-- Update `web/src/lib/db.ts` to add `prepare: false` for PgBouncer compatibility
-- Auto-deploy on push to main
+- [x] **US-P0-01: Deploy web app to Vercel** (Size: M)
+  - Import GitHub repo in Vercel, set Root Directory to `web`
+  - Configure environment variables (DATABASE_URL with Supavisor pooler URL port 6543)
+  - Update `web/src/lib/db.ts` to add `prepare: false` for PgBouncer compatibility
+  - Auto-deploy on push to main
 
-**US-P0-02: Deploy Trigger.dev** (Size: M)
-- Login via `npx trigger.dev@latest login`
-- Set env vars in Trigger.dev dashboard (DATABASE_URL direct port 5432, ANTHROPIC_API_KEY, FIREFLIES_API_KEY)
-- Deploy via `npx trigger.dev@latest deploy`
-- Verify hello-world task runs from dashboard
+- [x] **US-P0-02: Deploy Trigger.dev** (Size: M)
+  - Login via `npx trigger.dev@latest login`
+  - Set env vars in Trigger.dev dashboard (DATABASE_URL direct port 5432, ANTHROPIC_API_KEY, FIREFLIES_API_KEY)
+  - Deploy via `npx trigger.dev@latest deploy`
+  - Verify hello-world task runs from dashboard
 
-**US-P0-03: Set up CI/CD pipeline** (Size: S)
-- GitHub Actions: lint → type-check → build (web + root) on every push
-- Deploy Trigger.dev tasks on push to main
-- Vercel auto-deploys via GitHub integration
+- [x] **US-P0-03: Set up CI/CD pipeline** (Size: S)
+  - GitHub Actions: lint → type-check → build (web + root) on every push
+  - Deploy Trigger.dev tasks on push to main
+  - Vercel auto-deploys via GitHub integration
 
-**US-P0-04: Upgrade Supabase to Pro + enable pgvector** (Size: S)
-- Upgrade at Supabase Dashboard → Billing
-- Run `CREATE EXTENSION IF NOT EXISTS vector` in SQL Editor
+- [x] **US-P0-04: Upgrade Supabase to Pro + enable pgvector** (Size: S)
+  - Upgrade at Supabase Dashboard → Billing
+  - Run `CREATE EXTENSION IF NOT EXISTS vector` in SQL Editor
 
-**US-P0-05: Set up monitoring** (Size: S)
-- Sentry for Next.js (`npx @sentry/wizard@latest -i nextjs`)
-- Health check endpoint at `/api/health`
-- UptimeRobot or Better Stack for uptime monitoring
+- [x] **US-P0-05: Set up monitoring** (Size: S)
+  - Sentry for Next.js (`npx @sentry/wizard@latest -i nextjs`)
+  - Health check endpoint at `/api/health`
+  - UptimeRobot or Better Stack for uptime monitoring
 
 ### Phase 1: Fireflies Import + AI Extraction
 
-**US-P1-01: Poll Fireflies for new transcripts** (Size: M)
-- Trigger.dev `schedules.task` runs every 15 min
-- Queries Fireflies GraphQL API for transcripts completed since last sync
-- Creates `meetings` rows (status: `pending_extraction`)
-- Skips duplicates via `firefliesTranscriptId` unique constraint
-- **AC**: Given API key configured, when poll runs, then new transcripts appear as meetings with `pending_extraction` status. If API unreachable, retries 3x with backoff.
+- [ ] **US-P1-01: Poll Fireflies for new transcripts** (Size: M)
+  - Trigger.dev `schedules.task` runs every 15 min
+  - Queries Fireflies GraphQL API for transcripts completed since last sync
+  - Creates `meetings` rows (status: `pending_extraction`)
+  - Skips duplicates via `firefliesTranscriptId` unique constraint
+  - **AC**: Given API key configured, when poll runs, then new transcripts appear as meetings with `pending_extraction` status. If API unreachable, retries 3x with backoff.
 
-**US-P1-02: Extract structured data via Claude** (Size: L)
-- Trigger.dev task chained from sync task
-- Sends meeting `aiSummary` to Claude API with structured extraction prompt using `tool_use`
-- Extracts: company name, contact info, website, location, size, revenue, tech stack, social media, industry, niche, products, services, stakeholders, budget, pain points, requirements, timeline, urgency, follow-up items
-- Each field includes a confidence score (0-1)
-- Validates response with Zod schema; retries once on validation failure
-- Stores result in `meeting_extractions` (status: `pending_review`)
-- **AC**: Given a meeting with `pending_extraction` status, when extraction task runs, then extraction row is created with per-field confidence scores. If Claude fails after retries, meeting status set to `extraction_failed`.
+- [ ] **US-P1-02: Extract structured data via Claude** (Size: L)
+  - Trigger.dev task chained from sync task
+  - Sends meeting `aiSummary` to Claude API with structured extraction prompt using `tool_use`
+  - Extracts: company name, contact info, website, location, size, revenue, tech stack, social media, industry, niche, products, services, stakeholders, budget, pain points, requirements, timeline, urgency, follow-up items
+  - Each field includes a confidence score (0-1)
+  - Validates response with Zod schema; retries once on validation failure
+  - Stores result in `meeting_extractions` (status: `pending_review`)
+  - **AC**: Given a meeting with `pending_extraction` status, when extraction task runs, then extraction row is created with per-field confidence scores. If Claude fails after retries, meeting status set to `extraction_failed`.
 
-**US-P1-03: Match extracted entities to existing DB records** (Size: M)
-- Compare extracted company name against `companies` table (case-insensitive ILIKE + Levenshtein distance)
-- Compare catalog items against respective tables
-- Confidence scoring: exact match = 1.0, case-insensitive = 0.95, substring = 0.7, website domain match = 0.8, no match = 0.0
-- Store match suggestions in extraction's `matchSuggestions` jsonb
-- Update extraction status to `ready_for_review`
+- [ ] **US-P1-03: Match extracted entities to existing DB records** (Size: M)
+  - Compare extracted company name against `companies` table (case-insensitive ILIKE + Levenshtein distance)
+  - Compare catalog items against respective tables
+  - Confidence scoring: exact match = 1.0, case-insensitive = 0.95, substring = 0.7, website domain match = 0.8, no match = 0.0
+  - Store match suggestions in extraction's `matchSuggestions` jsonb
+  - Update extraction status to `ready_for_review`
 
-**US-P1-04: Review and confirm extracted data** (Size: L)
-- Full-page review screen at `/meetings/[id]/review`
-- Sections: Meeting Info (read-only), Company (editable fields + match dropdown), Catalog (per-item confidence + select existing or create new), Meeting Details (editable with include/exclude checkboxes)
-- Confidence badges: green >= 0.8, yellow 0.5-0.79, red < 0.5
-- Each catalog entity shows: extracted value, confidence badge, select dropdown (Create New + existing matches sorted by confidence)
-- "Confirm & Save": creates/links company, creates/matches catalog entities, stores `confirmedData`, redirects to company detail
-- "Reject": marks as rejected, no DB writes, redirects to `/meetings`
-- **AC**: Given extraction with `ready_for_review` status, when I confirm, then company is created/linked, catalog entities matched/created, and meeting status becomes `reviewed`. When I reject, no writes occur.
+- [ ] **US-P1-04: Review and confirm extracted data** (Size: L)
+  - Full-page review screen at `/meetings/[id]/review`
+  - Sections: Meeting Info (read-only), Company (editable fields + match dropdown), Catalog (per-item confidence + select existing or create new), Meeting Details (editable with include/exclude checkboxes)
+  - Confidence badges: green >= 0.8, yellow 0.5-0.79, red < 0.5
+  - Each catalog entity shows: extracted value, confidence badge, select dropdown (Create New + existing matches sorted by confidence)
+  - "Confirm & Save": creates/links company, creates/matches catalog entities, stores `confirmedData`, redirects to company detail
+  - "Reject": marks as rejected, no DB writes, redirects to `/meetings`
+  - **AC**: Given extraction with `ready_for_review` status, when I confirm, then company is created/linked, catalog entities matched/created, and meeting status becomes `reviewed`. When I reject, no writes occur.
 
-**US-P1-05: Meetings list page** (Size: S)
-- `/meetings` with table: Title, Date, Duration, Company (if linked), Status badge
-- Sorted by date descending
-- Links to review page if `ready_for_review`, otherwise read-only detail
-- "Meetings" nav item in sidebar (Mic icon)
+- [ ] **US-P1-05: Meetings list page** (Size: S)
+  - `/meetings` with table: Title, Date, Duration, Company (if linked), Status badge
+  - Sorted by date descending
+  - Links to review page if `ready_for_review`, otherwise read-only detail
+  - "Meetings" nav item in sidebar (Mic icon)
 
-**US-P1-06: Retry failed extractions** (Size: S)
-- "Retry Extraction" button on meetings with `extraction_failed` status
-- Resets to `pending_extraction` and triggers extraction task
+- [ ] **US-P1-06: Retry failed extractions** (Size: S)
+  - "Retry Extraction" button on meetings with `extraction_failed` status
+  - Resets to `pending_extraction` and triggers extraction task
 
-**US-P1-07: Enrich companies table** (Size: S)
-- Add new nullable columns to `companies` via Drizzle migration
-- Display new fields on company detail page when present
-- Include in edit company form
+- [ ] **US-P1-07: Enrich companies table** (Size: S)
+  - Add new nullable columns to `companies` via Drizzle migration
+  - Display new fields on company detail page when present
+  - Include in edit company form
 
 ### Phase 1.5: Meeting Preparation
 
-**US-MP-01: Schedule an upcoming meeting** (Size: M)
-- Form at `/meetings/schedule` with fields: company (select), title, date/time, duration, type (discovery/follow-up/kickoff/review/general), location, notes, agenda items
-- Company is required — this is how the system knows who to prepare for
-- Saves to `scheduled_meetings` with status `scheduled`
-- If Google Calendar is connected, also creates a corresponding event on the dedicated calendar and stores `googleCalendarEventId`
-- If Google Calendar is not connected, works as before (app-only)
-- **AC**: Given I fill all required fields and select a company, when I submit, then a scheduled meeting is created with status `scheduled` and appears in the meetings list. Given Google Calendar is connected, then the event also appears on the dedicated calendar. Given I leave company blank, when I submit, then validation error is shown.
+- [ ] **US-MP-01: Schedule an upcoming meeting** (Size: M)
+  - Form at `/meetings/schedule` with fields: company (select), title, date/time, duration, type (discovery/follow-up/kickoff/review/general), location, notes, agenda items
+  - Company is required — this is how the system knows who to prepare for
+  - Saves to `scheduled_meetings` with status `scheduled`
+  - If Google Calendar is connected, also creates a corresponding event on the dedicated calendar and stores `googleCalendarEventId`
+  - If Google Calendar is not connected, works as before (app-only)
+  - **AC**: Given I fill all required fields and select a company, when I submit, then a scheduled meeting is created with status `scheduled` and appears in the meetings list. Given Google Calendar is connected, then the event also appears on the dedicated calendar. Given I leave company blank, when I submit, then validation error is shown.
 
-**US-MP-01a: Connect Google Calendar** (Size: M)
-- "Connect Google Calendar" button in Settings page initiates standard OAuth flow
-- Requests `calendar.readonly` + `calendar.events` scopes
-- On successful callback, stores tokens in `google_calendar_tokens` table
-- After connecting, user selects an existing calendar or creates a new "Client Meetings" calendar as the dedicated sync calendar
-- Settings page shows connection status: connected calendar name, last sync time, "Disconnect" button
-- Disconnect clears tokens from DB (does not delete calendar or events)
-- If token refresh fails (revoked access), show "Reconnect" prompt on Settings page and meeting pages
-- **AC**: Given I click "Connect Google Calendar", when OAuth completes, then tokens are stored and I can select a calendar. Given I click "Disconnect", then tokens are removed and sync stops. Given my token is revoked, then I see a "Reconnect" prompt.
+- [ ] **US-MP-01a: Connect Google Calendar** (Size: M)
+  - "Connect Google Calendar" button in Settings page initiates standard OAuth flow
+  - Requests `calendar.readonly` + `calendar.events` scopes
+  - On successful callback, stores tokens in `google_calendar_tokens` table
+  - After connecting, user selects an existing calendar or creates a new "Client Meetings" calendar as the dedicated sync calendar
+  - Settings page shows connection status: connected calendar name, last sync time, "Disconnect" button
+  - Disconnect clears tokens from DB (does not delete calendar or events)
+  - If token refresh fails (revoked access), show "Reconnect" prompt on Settings page and meeting pages
+  - **AC**: Given I click "Connect Google Calendar", when OAuth completes, then tokens are stored and I can select a calendar. Given I click "Disconnect", then tokens are removed and sync stops. Given my token is revoked, then I see a "Reconnect" prompt.
 
-**US-MP-01b: Sync events from Google Calendar** (Size: M)
-- Trigger.dev `schedules.task` polls the dedicated calendar every 10 min using incremental sync (`syncToken`)
-- New events on the dedicated calendar create `scheduled_meetings` rows with status `pending_company_link` — user must link a company before preparation can generate
-- Updated events on the calendar update the corresponding `scheduled_meetings` row
-- Deleted events on the calendar mark the corresponding row as `cancelled`
-- Deduplication via `googleCalendarEventId` — events already synced are skipped
-- If dedicated calendar is deleted, task logs error and shows "Reconfigure calendar" prompt in Settings
-- **AC**: Given I create an event on the dedicated Google Calendar, when sync runs, then a scheduled meeting appears in the app with status `pending_company_link`. Given I delete a synced event from Google Calendar, when sync runs, then the scheduled meeting is marked `cancelled`.
+- [ ] **US-MP-01b: Sync events from Google Calendar** (Size: M)
+  - Trigger.dev `schedules.task` polls the dedicated calendar every 10 min using incremental sync (`syncToken`)
+  - New events on the dedicated calendar create `scheduled_meetings` rows with status `pending_company_link` — user must link a company before preparation can generate
+  - Updated events on the calendar update the corresponding `scheduled_meetings` row
+  - Deleted events on the calendar mark the corresponding row as `cancelled`
+  - Deduplication via `googleCalendarEventId` — events already synced are skipped
+  - If dedicated calendar is deleted, task logs error and shows "Reconfigure calendar" prompt in Settings
+  - **AC**: Given I create an event on the dedicated Google Calendar, when sync runs, then a scheduled meeting appears in the app with status `pending_company_link`. Given I delete a synced event from Google Calendar, when sync runs, then the scheduled meeting is marked `cancelled`.
 
-**US-MP-01c: Push meeting changes to Google Calendar** (Size: S)
-- When a scheduled meeting is created, edited, or cancelled in-app, the corresponding Google Calendar event is created, updated, or deleted
-- If Google API call fails (network, token expired), meeting is still saved locally — sync retries on next poll cycle
-- Editing meeting title, date, duration, or location in-app updates the Google Calendar event
-- **AC**: Given I edit a meeting's date in the app, when I save, then the Google Calendar event updates. Given Google API is unreachable, when I save, then the meeting saves locally and syncs later.
+- [ ] **US-MP-01c: Push meeting changes to Google Calendar** (Size: S)
+  - When a scheduled meeting is created, edited, or cancelled in-app, the corresponding Google Calendar event is created, updated, or deleted
+  - If Google API call fails (network, token expired), meeting is still saved locally — sync retries on next poll cycle
+  - Editing meeting title, date, duration, or location in-app updates the Google Calendar event
+  - **AC**: Given I edit a meeting's date in the app, when I save, then the Google Calendar event updates. Given Google API is unreachable, when I save, then the meeting saves locally and syncs later.
 
-**US-MP-02: View upcoming and past meetings in unified list** (Size: S)
-- `/meetings` page shows two sections: "Upcoming" (scheduled meetings sorted by date ascending) and "Past" (Fireflies transcripts sorted by date descending)
-- Upcoming meetings show: title, company, date, type badge, preparation status badge
-- Each upcoming meeting links to `/meetings/scheduled/[id]`
-- **AC**: Given I have 3 scheduled meetings and 5 transcripts, when I visit `/meetings`, then I see both sections with correct counts and sorting.
+- [ ] **US-MP-02: View upcoming and past meetings in unified list** (Size: S)
+  - `/meetings` page shows two sections: "Upcoming" (scheduled meetings sorted by date ascending) and "Past" (Fireflies transcripts sorted by date descending)
+  - Upcoming meetings show: title, company, date, type badge, preparation status badge
+  - Each upcoming meeting links to `/meetings/scheduled/[id]`
+  - **AC**: Given I have 3 scheduled meetings and 5 transcripts, when I visit `/meetings`, then I see both sections with correct counts and sorting.
 
-**US-MP-03: Auto-trigger company investigation on scheduling** (Size: M)
-- When a scheduled meeting is created for a company that has NEVER been investigated (no `company_briefs` row), automatically trigger the investigation task
-- If an investigation already exists and is < 30 days old, skip it
-- If an investigation exists but is > 30 days old, trigger a fresh one
-- Link the investigation to the meeting preparation via `investigationId`
-- **AC**: Given company "Acme" has no prior investigation, when I schedule a meeting with Acme, then investigation is auto-triggered and `preparationStatus` is `generating`. Given company "Acme" was investigated 10 days ago, when I schedule a meeting, then no new investigation is triggered.
+- [ ] **US-MP-03: Auto-trigger company investigation on scheduling** (Size: M)
+  - When a scheduled meeting is created for a company that has NEVER been investigated (no `company_briefs` row), automatically trigger the investigation task
+  - If an investigation already exists and is < 30 days old, skip it
+  - If an investigation exists but is > 30 days old, trigger a fresh one
+  - Link the investigation to the meeting preparation via `investigationId`
+  - **AC**: Given company "Acme" has no prior investigation, when I schedule a meeting with Acme, then investigation is auto-triggered and `preparationStatus` is `generating`. Given company "Acme" was investigated 10 days ago, when I schedule a meeting, then no new investigation is triggered.
 
-**US-MP-04: Generate AI interview guide** (Size: L)
-- Trigger.dev task `generate-interview-guide` runs after investigation completes (or immediately if investigation already exists)
-- Inputs to Claude: company snapshot (name, industry, niche, products/services, tech stack, website, size, location, social media), investigation results (if available), meeting type, developer's notes/agenda, knowledge gaps (fields where company data is missing)
-- Claude generates structured `InterviewGuide` JSON via `tool_use`: sections with contextual questions, ice breakers, red flags, key facts
-- Questions are tailored to meeting type (discovery = broad exploratory, follow-up = specific progress, kickoff = scope and timeline)
-- Stores result in `meeting_preparations` with `companySnapshot` frozen at generation time
-- **AC**: Given a scheduled discovery meeting with a company that has website + industry but no revenue/size info, when guide is generated, then it includes questions probing revenue range and team size under "Knowledge Gaps" section, plus industry-specific questions. Given a follow-up meeting, when guide is generated, then questions reference previous meeting context.
+- [ ] **US-MP-04: Generate AI interview guide** (Size: L)
+  - Trigger.dev task `generate-interview-guide` runs after investigation completes (or immediately if investigation already exists)
+  - Inputs to Claude: company snapshot (name, industry, niche, products/services, tech stack, website, size, location, social media), investigation results (if available), meeting type, developer's notes/agenda, knowledge gaps (fields where company data is missing)
+  - Claude generates structured `InterviewGuide` JSON via `tool_use`: sections with contextual questions, ice breakers, red flags, key facts
+  - Questions are tailored to meeting type (discovery = broad exploratory, follow-up = specific progress, kickoff = scope and timeline)
+  - Stores result in `meeting_preparations` with `companySnapshot` frozen at generation time
+  - **AC**: Given a scheduled discovery meeting with a company that has website + industry but no revenue/size info, when guide is generated, then it includes questions probing revenue range and team size under "Knowledge Gaps" section, plus industry-specific questions. Given a follow-up meeting, when guide is generated, then questions reference previous meeting context.
 
-**US-MP-05: Knowledge gap analysis** (Size: M)
-- Compare company record against a "completeness template" of desired fields
-- Missing or empty fields become knowledge gaps
-- Each gap maps to 1-2 suggested interview questions
-- Gaps are prioritized: critical (name, industry, website), important (size, revenue, tech stack), nice-to-have (social media, years in business)
-- **AC**: Given company has name and website but no industry, size, or revenue, when preparation is generated, then `knowledgeGaps` contains 3 gaps with priority levels and suggested questions.
+- [ ] **US-MP-05: Knowledge gap analysis** (Size: M)
+  - Compare company record against a "completeness template" of desired fields
+  - Missing or empty fields become knowledge gaps
+  - Each gap maps to 1-2 suggested interview questions
+  - Gaps are prioritized: critical (name, industry, website), important (size, revenue, tech stack), nice-to-have (social media, years in business)
+  - **AC**: Given company has name and website but no industry, size, or revenue, when preparation is generated, then `knowledgeGaps` contains 3 gaps with priority levels and suggested questions.
 
-**US-MP-06: Discussion topic suggestions** (Size: M)
-- Based on company industry/niche, suggest relevant talking points
-- Reference similar past projects (if any exist in same industry/niche) to suggest "we've done X for companies like yours"
-- Include industry trends or common pain points from the investigation brief
-- **AC**: Given company is in "E-commerce" niche with 2 past projects in same niche, when preparation is generated, then `discussionTopics` includes references to those projects and e-commerce-specific topics.
+- [ ] **US-MP-06: Discussion topic suggestions** (Size: M)
+  - Based on company industry/niche, suggest relevant talking points
+  - Reference similar past projects (if any exist in same industry/niche) to suggest "we've done X for companies like yours"
+  - Include industry trends or common pain points from the investigation brief
+  - **AC**: Given company is in "E-commerce" niche with 2 past projects in same niche, when preparation is generated, then `discussionTopics` includes references to those projects and e-commerce-specific topics.
 
-**US-MP-07: View meeting preparation page** (Size: L)
-- `/meetings/scheduled/[id]` shows: meeting details (header), preparation status, and when ready:
-  - **Interview Guide**: Expandable sections with questions, intent, follow-ups, priority badges
-  - **Key Facts**: Card-style display of company snapshot data
-  - **Knowledge Gaps**: Checklist of missing info with suggested questions
-  - **Discussion Topics**: Bullet list with context
-  - **Similar Projects**: Cards showing past projects in same industry/niche (if any)
-  - **Red Flags**: Warning-style callouts
-  - **Ice Breakers**: Casual conversation starters
-- "Regenerate Preparation" button to refresh with latest company data
-- "Print / Export" button for taking to meeting
-- **AC**: Given a preparation with status `ready`, when I visit the page, then all sections render with data from `meeting_preparations`. Given status is `generating`, then I see a loading state with progress indicator.
+- [ ] **US-MP-07: View meeting preparation page** (Size: L)
+  - `/meetings/scheduled/[id]` shows: meeting details (header), preparation status, and when ready:
+    - **Interview Guide**: Expandable sections with questions, intent, follow-ups, priority badges
+    - **Key Facts**: Card-style display of company snapshot data
+    - **Knowledge Gaps**: Checklist of missing info with suggested questions
+    - **Discussion Topics**: Bullet list with context
+    - **Similar Projects**: Cards showing past projects in same industry/niche (if any)
+    - **Red Flags**: Warning-style callouts
+    - **Ice Breakers**: Casual conversation starters
+  - "Regenerate Preparation" button to refresh with latest company data
+  - "Print / Export" button for taking to meeting
+  - **AC**: Given a preparation with status `ready`, when I visit the page, then all sections render with data from `meeting_preparations`. Given status is `generating`, then I see a loading state with progress indicator.
 
-**US-MP-08: Regenerate preparation with updated data** (Size: S)
-- "Regenerate" button re-triggers the preparation task
-- Fetches fresh company data (including any investigation updates)
-- Replaces existing `meeting_preparations` row (ADR-008)
-- **AC**: Given I regenerate a preparation, when task completes, then the preparation shows updated company data and new questions reflecting any changes.
+- [ ] **US-MP-08: Regenerate preparation with updated data** (Size: S)
+  - "Regenerate" button re-triggers the preparation task
+  - Fetches fresh company data (including any investigation updates)
+  - Replaces existing `meeting_preparations` row (ADR-008)
+  - **AC**: Given I regenerate a preparation, when task completes, then the preparation shows updated company data and new questions reflecting any changes.
 
-**US-MP-09: Link Fireflies transcript to scheduled meeting** (Size: M)
-- When Fireflies sync finds a new transcript, run matching algorithm against unlinked scheduled meetings:
-  - Company name match (weight 0.4): transcript company vs scheduled meeting company
-  - Date proximity (weight 0.35): transcript date within ±2 days of scheduled date
-  - Title similarity via `pg_trgm` (weight 0.25): transcript title vs scheduled meeting title
-- Above 0.6 combined confidence: auto-link (`scheduled_meetings.meetingId = meetings.id`)
-- Below 0.6: show "Possible match" suggestion on meetings list — developer confirms or dismisses
-- **AC**: Given a scheduled meeting for "Acme Corp" on Jan 15 titled "Discovery Call", when a Fireflies transcript for "Acme Corp" dated Jan 15 titled "Acme Discovery" arrives, then it auto-links with confidence > 0.6. Given a transcript with no matching company, then no auto-link occurs and it appears as unlinked.
+- [ ] **US-MP-09: Link Fireflies transcript to scheduled meeting** (Size: M)
+  - When Fireflies sync finds a new transcript, run matching algorithm against unlinked scheduled meetings:
+    - Company name match (weight 0.4): transcript company vs scheduled meeting company
+    - Date proximity (weight 0.35): transcript date within ±2 days of scheduled date
+    - Title similarity via `pg_trgm` (weight 0.25): transcript title vs scheduled meeting title
+  - Above 0.6 combined confidence: auto-link (`scheduled_meetings.meetingId = meetings.id`)
+  - Below 0.6: show "Possible match" suggestion on meetings list — developer confirms or dismisses
+  - **AC**: Given a scheduled meeting for "Acme Corp" on Jan 15 titled "Discovery Call", when a Fireflies transcript for "Acme Corp" dated Jan 15 titled "Acme Discovery" arrives, then it auto-links with confidence > 0.6. Given a transcript with no matching company, then no auto-link occurs and it appears as unlinked.
 
-**US-MP-10: Mark scheduled meeting as completed** (Size: S)
-- When a Fireflies transcript is linked, scheduled meeting status transitions to `completed`
-- If no transcript arrives within 48 hours of scheduled date, show "No recording found" badge
-- Manual "Mark as Completed" button for meetings that weren't recorded
-- **AC**: Given a scheduled meeting with a linked transcript, then status is `completed`. Given a meeting 48+ hours past with no transcript, then it shows "No recording found" badge.
+- [ ] **US-MP-10: Mark scheduled meeting as completed** (Size: S)
+  - When a Fireflies transcript is linked, scheduled meeting status transitions to `completed`
+  - If no transcript arrives within 48 hours of scheduled date, show "No recording found" badge
+  - Manual "Mark as Completed" button for meetings that weren't recorded
+  - **AC**: Given a scheduled meeting with a linked transcript, then status is `completed`. Given a meeting 48+ hours past with no transcript, then it shows "No recording found" badge.
 
-**US-MP-11: Scheduled meetings in sidebar** (Size: S)
-- Sidebar "Meetings" item shows badge count of upcoming meetings in next 7 days
-- Badge updates on page navigation
-- **AC**: Given 2 meetings scheduled within the next 7 days, when I view any page, then the Meetings sidebar item shows "(2)" badge.
+- [ ] **US-MP-11: Scheduled meetings in sidebar** (Size: S)
+  - Sidebar "Meetings" item shows badge count of upcoming meetings in next 7 days
+  - Badge updates on page navigation
+  - **AC**: Given 2 meetings scheduled within the next 7 days, when I view any page, then the Meetings sidebar item shows "(2)" badge.
 
-**US-MP-12: Export preparation as PDF** (Size: M)
-- "Export" button generates a clean, printable preparation document
-- Includes: meeting details, key facts, interview guide (questions + intents), knowledge gaps, discussion topics
-- Uses browser print CSS (`@media print`) for clean output
-- **AC**: Given a ready preparation, when I click "Export" and print to PDF, then the output is a well-formatted single document with all preparation sections.
+- [ ] **US-MP-12: Export preparation as PDF** (Size: M)
+  - "Export" button generates a clean, printable preparation document
+  - Includes: meeting details, key facts, interview guide (questions + intents), knowledge gaps, discussion topics
+  - Uses browser print CSS (`@media print`) for clean output
+  - **AC**: Given a ready preparation, when I click "Export" and print to PDF, then the output is a well-formatted single document with all preparation sections.
 
-**US-MP-13: Preparation effectiveness tracking** (Size: S)
-- After a meeting is completed (transcript linked), show a quick rating: "How useful was the preparation?" (1-5 stars)
-- Stored in `scheduled_meetings` as `preparationRating`
-- Displayed in meetings list for historical reference
-- Used to tune prompt quality over time (which types of questions led to better meetings)
-- **AC**: Given a completed meeting, when I rate the preparation 4 stars, then the rating is stored and visible in the meetings list.
+- [ ] **US-MP-13: Preparation effectiveness tracking** (Size: S)
+  - After a meeting is completed (transcript linked), show a quick rating: "How useful was the preparation?" (1-5 stars)
+  - Stored in `scheduled_meetings` as `preparationRating`
+  - Displayed in meetings list for historical reference
+  - Used to tune prompt quality over time (which types of questions led to better meetings)
+  - **AC**: Given a completed meeting, when I rate the preparation 4 stars, then the rating is stored and visible in the meetings list.
 
 ### Phase 2: Company Investigation
 
-**US-P2-01: Trigger investigation from company page** (Size: L)
-- "Investigate" button on `/companies/[id]`
-- Creates `company_briefs` row, triggers Trigger.dev task
-- Task scrapes: website (home + about + services via cheerio), tech stack (headers/meta tags), domain WHOIS, social media links
-- Each source runs independently (one failure doesn't block others)
-- Claude synthesizes all gathered data into a summary
-- Status updates: pending → running → completed/failed
-- Button shows spinner while running, disabled if already in progress
+- [ ] **US-P2-01: Trigger investigation from company page** (Size: L)
+  - "Investigate" button on `/companies/[id]`
+  - Creates `company_briefs` row, triggers Trigger.dev task
+  - Task scrapes via Firecrawl API: website (home + about + services pages as clean markdown), tech stack (headers/meta tags), domain WHOIS, social media links
+  - Each source runs independently (one failure doesn't block others)
+  - Claude synthesizes all gathered markdown into a structured summary
+  - Status updates: pending → running → completed/failed
+  - Button shows spinner while running, disabled if already in progress
 
-**US-P2-02: Review investigation with diff view** (Size: L)
-- After investigation completes, company page shows "Investigation Results" section
-- Diff-style view per field: Field Name | Current Value | Discovered Value | Accept/Ignore
-- Green = new info not in record, Yellow = differs from existing, Gray = matches
-- "Apply Selected" commits all accepted changes via single server action
-- "Missing Info" section lists fields investigation couldn't find (needs follow-up meeting)
-- All results preserved in `company_briefs` for audit trail
+- [ ] **US-P2-02: Review investigation with diff view** (Size: L)
+  - After investigation completes, company page shows "Investigation Results" section
+  - Diff-style view per field: Field Name | Current Value | Discovered Value | Accept/Ignore
+  - Green = new info not in record, Yellow = differs from existing, Gray = matches
+  - "Apply Selected" commits all accepted changes via single server action
+  - "Missing Info" section lists fields investigation couldn't find (needs follow-up meeting)
+  - All results preserved in `company_briefs` for audit trail
 
-**US-P2-03: Downloadable company brief** (Size: M)
-- "Download Brief" button after investigation completes
-- Includes: company info, industry/niche, products/services, tech stack, investigation findings, linked projects, gaps section
-- Markdown rendered in-browser + "Download as PDF" via browser print
-- Generation timestamp included
+- [ ] **US-P2-03: Downloadable company brief** (Size: M)
+  - "Download Brief" button after investigation completes
+  - Includes: company info, industry/niche, products/services, tech stack, investigation findings, linked projects, gaps section
+  - Markdown rendered in-browser + "Download as PDF" via browser print
+  - Generation timestamp included
 
 ### Phase 3: Blueprint Matching & Project Reuse
 
-**US-P3-01: Generate embeddings for projects** (Size: L)
-- Trigger.dev task generates embedding via OpenAI `text-embedding-3-small`
-- Input text: project name + description + company industry/niche + tool names + blueprint name
-- Triggered when project status → `completed`, or manually via "Generate Embedding" button
-- Stored in `project_embeddings` table
+- [ ] **US-P3-01: Generate embeddings for projects** (Size: L)
+  - Trigger.dev task generates embedding via OpenAI `text-embedding-3-small`
+  - Input text: project name + description + company industry/niche + tool names + blueprint name
+  - Triggered when project status → `completed`, or manually via "Generate Embedding" button
+  - Stored in `project_embeddings` table
 
-**US-P3-02: Find similar projects when creating new one** (Size: L)
-- "Find Similar Projects" button in new project form (after entering name + description + company)
-- Generates transient embedding, runs cosine similarity search (`<=>` operator)
-- Shows top 5 matches: project name, company name, similarity %, tools, blueprint, outcome rating
-- Projects with `outcomeRating >= 4` highlighted as "recommended"
-- Each result has "Use as Template" button
+- [ ] **US-P3-02: Find similar projects when creating new one** (Size: L)
+  - "Find Similar Projects" button in new project form (after entering name + description + company)
+  - Generates transient embedding, runs cosine similarity search (`<=>` operator)
+  - Shows top 5 matches: project name, company name, similarity %, tools, blueprint, outcome rating
+  - Projects with `outcomeRating >= 4` highlighted as "recommended"
+  - Each result has "Use as Template" button
 
-**US-P3-03: Auto-populate from matched template** (Size: M)
-- "Use as Template" copies: description (editable), project_tools entries, linked blueprint
-- Note stored: "Created from template: [source project] (similarity: X%)"
-- User confirms and can modify before final creation
+- [ ] **US-P3-03: Auto-populate from matched template** (Size: M)
+  - "Use as Template" copies: description (editable), project_tools entries, linked blueprint
+  - Note stored: "Created from template: [source project] (similarity: X%)"
+  - User confirms and can modify before final creation
 
-**US-P3-04: Rate completed projects** (Size: S)
-- When project status = `completed`, show "Outcome Rating" section
-- 5-star rating UI + optional outcome text field
-- Rating used as weighting factor in future similarity search: `similarity * (rating / 5.0)`
+- [ ] **US-P3-04: Rate completed projects** (Size: S)
+  - When project status = `completed`, show "Outcome Rating" section
+  - 5-star rating UI + optional outcome text field
+  - Rating used as weighting factor in future similarity search: `similarity * (rating / 5.0)`
 
 ### Phase 4: Cost & Revenue Management
 
-**US-C-01: Add a one-time expense** (Size: S)
-- Form at `/costs` (Expenses tab) with fields: description, amount, currency, category (dropdown), tool (optional select), paid by (text/dropdown of known names), date, receipt URL, notes
-- Type is set to `one_time`, billingCycle is null
-- **AC**: Given I fill description + amount + category + paidBy + date, when I submit, then expense is created and appears in the expenses table. Given I link it to a tool, then it shows the tool name in the table.
+- [ ] **US-C-01: Add a one-time expense** (Size: S)
+  - Form at `/costs` (Expenses tab) with fields: description, amount, currency, category (dropdown), tool (optional select), paid by (text/dropdown of known names), date, receipt URL, notes
+  - Type is set to `one_time`, billingCycle is null
+  - **AC**: Given I fill description + amount + category + paidBy + date, when I submit, then expense is created and appears in the expenses table. Given I link it to a tool, then it shows the tool name in the table.
 
-**US-C-02: Add a recurring subscription** (Size: S)
-- Same form as one-time but with type `subscription` and a billing cycle selector (monthly/annual/quarterly)
-- `isActive` defaults to true
-- **AC**: Given I add "Supabase Pro" as a monthly subscription for $25, when I save, then it appears in the expenses table with a "Recurring" badge and "Monthly" cycle label.
+- [ ] **US-C-02: Add a recurring subscription** (Size: S)
+  - Same form as one-time but with type `subscription` and a billing cycle selector (monthly/annual/quarterly)
+  - `isActive` defaults to true
+  - **AC**: Given I add "Supabase Pro" as a monthly subscription for $25, when I save, then it appears in the expenses table with a "Recurring" badge and "Monthly" cycle label.
 
-**US-C-03: Allocate expense to projects** (Size: M)
-- After creating an expense, "Allocate" button opens a modal/inline form
-- Select project(s) from dropdown, assign percentage to each
-- Percentages are validated: sum must not exceed 100%
-- Unallocated remainder shown as "Overhead" in the UI
-- **AC**: Given an expense of $100, when I allocate 60% to Project A and 30% to Project B, then Project A shows $60, Project B shows $30, and $10 is shown as overhead. Given I try to allocate 70% + 50%, then validation error prevents it.
+- [ ] **US-C-03: Allocate expense to projects** (Size: M)
+  - After creating an expense, "Allocate" button opens a modal/inline form
+  - Select project(s) from dropdown, assign percentage to each
+  - Percentages are validated: sum must not exceed 100%
+  - Unallocated remainder shown as "Overhead" in the UI
+  - **AC**: Given an expense of $100, when I allocate 60% to Project A and 30% to Project B, then Project A shows $60, Project B shows $30, and $10 is shown as overhead. Given I try to allocate 70% + 50%, then validation error prevents it.
 
-**US-C-04: Generate recurring expenses** (Size: M)
-- "Generate Recurring" button on the expenses tab
-- Finds all active subscriptions, creates new expense entries for the current billing period
-- Pre-fills allocations from the most recent entry of each subscription
-- Shows a confirmation modal: list of subscriptions to be generated, total amount, pre-filled allocations
-- Developer can edit allocations or skip individual subscriptions before confirming
-- Deduplication: skips subscriptions that already have an entry for the current period
-- **AC**: Given 3 active monthly subscriptions, when I click "Generate Recurring" in February, then 3 new expense entries are created dated February with last month's allocations. Given one subscription already has a February entry, then only 2 are generated.
+- [ ] **US-C-04: Generate recurring expenses** (Size: M)
+  - "Generate Recurring" button on the expenses tab
+  - Finds all active subscriptions, creates new expense entries for the current billing period
+  - Pre-fills allocations from the most recent entry of each subscription
+  - Shows a confirmation modal: list of subscriptions to be generated, total amount, pre-filled allocations
+  - Developer can edit allocations or skip individual subscriptions before confirming
+  - Deduplication: skips subscriptions that already have an entry for the current period
+  - **AC**: Given 3 active monthly subscriptions, when I click "Generate Recurring" in February, then 3 new expense entries are created dated February with last month's allocations. Given one subscription already has a February entry, then only 2 are generated.
 
-**US-C-05: Record a payment (revenue)** (Size: S)
-- Form on the Revenue tab: project (select), description, amount, payment method (dropdown), date received, notes
-- Project is required — revenue is always tied to a project
-- **AC**: Given I record a $5000 payment for Project A via bank transfer, when I save, then it appears in the revenue table linked to Project A and its company.
+- [ ] **US-C-05: Record a payment (revenue)** (Size: S)
+  - Form on the Revenue tab: project (select), description, amount, payment method (dropdown), date received, notes
+  - Project is required — revenue is always tied to a project
+  - **AC**: Given I record a $5000 payment for Project A via bank transfer, when I save, then it appears in the revenue table linked to Project A and its company.
 
-**US-C-06: Expenses list with filters** (Size: M)
-- `/costs` Expenses tab shows a filterable/sortable table: Date, Description, Amount, Category, Type badge (one-time/subscription), Tool, Paid By, Allocations summary
-- Filters: date range, category, type (all/subscription/one-time), tool, paid by
-- Quick stats at top: total this month, total subscriptions (monthly burn rate), total one-time
-- **AC**: Given 10 expenses across 3 categories, when I filter by "tool" category, then only tool expenses are shown. When I clear filters, all 10 are shown.
+- [ ] **US-C-06: Expenses list with filters** (Size: M)
+  - `/costs` Expenses tab shows a filterable/sortable table: Date, Description, Amount, Category, Type badge (one-time/subscription), Tool, Paid By, Allocations summary
+  - Filters: date range, category, type (all/subscription/one-time), tool, paid by
+  - Quick stats at top: total this month, total subscriptions (monthly burn rate), total one-time
+  - **AC**: Given 10 expenses across 3 categories, when I filter by "tool" category, then only tool expenses are shown. When I clear filters, all 10 are shown.
 
-**US-C-07: Revenue list with filters** (Size: S)
-- Revenue tab shows: Date, Description, Amount, Project, Company (derived), Payment Method
-- Filters: date range, project, company
-- Quick stats: total revenue this month, total revenue this quarter
-- **AC**: Given 5 payments across 3 projects, when I filter by Project A, then only Project A payments are shown.
+- [ ] **US-C-07: Revenue list with filters** (Size: S)
+  - Revenue tab shows: Date, Description, Amount, Project, Company (derived), Payment Method
+  - Filters: date range, project, company
+  - Quick stats: total revenue this month, total revenue this quarter
+  - **AC**: Given 5 payments across 3 projects, when I filter by Project A, then only Project A payments are shown.
 
-**US-C-08: Profitability dashboard** (Size: L)
-- Profitability tab with three views:
-  - **Per Project**: table with columns — Project Name, Company, Total Costs (allocated), Total Revenue, Profit, Margin %
-  - **Per Client**: aggregate across all projects for each company — Company Name, # Projects, Total Costs, Total Revenue, Profit, Margin %
-  - **Per Tool**: how much each tool costs total and per month — Tool Name, Monthly Cost, Total Cost, # Projects Using
-- Date range selector (this month / this quarter / this year / all time / custom)
-- Color coding: green for profitable (margin > 20%), yellow (0-20%), red (negative margin)
-- **AC**: Given Project A has $200 in allocated costs and $1000 in revenue, when I view per-project profitability, then it shows $800 profit and 80% margin in green. Given Project B has $500 in costs and $0 in revenue, then it shows -$500 and negative margin in red.
+- [ ] **US-C-08: Profitability dashboard** (Size: L)
+  - Profitability tab with three views:
+    - **Per Project**: table with columns — Project Name, Company, Total Costs (allocated), Total Revenue, Profit, Margin %
+    - **Per Client**: aggregate across all projects for each company — Company Name, # Projects, Total Costs, Total Revenue, Profit, Margin %
+    - **Per Tool**: how much each tool costs total and per month — Tool Name, Monthly Cost, Total Cost, # Projects Using
+  - Date range selector (this month / this quarter / this year / all time / custom)
+  - Color coding: green for profitable (margin > 20%), yellow (0-20%), red (negative margin)
+  - **AC**: Given Project A has $200 in allocated costs and $1000 in revenue, when I view per-project profitability, then it shows $800 profit and 80% margin in green. Given Project B has $500 in costs and $0 in revenue, then it shows -$500 and negative margin in red.
 
-**US-C-09: Cost summary on project detail page** (Size: S)
-- On the existing `/projects/[id]` page, add a "Financials" section
-- Shows: total allocated costs, total revenue (payments), profit/margin
-- Link to "View in Costs" to jump to the filtered costs page
-- **AC**: Given Project A has 3 allocated expenses totaling $150 and 2 payments totaling $3000, when I view the project page, then the Financials section shows costs: $150, revenue: $3000, profit: $2850, margin: 95%.
+- [ ] **US-C-09: Cost summary on project detail page** (Size: S)
+  - On the existing `/projects/[id]` page, add a "Financials" section
+  - Shows: total allocated costs, total revenue (payments), profit/margin
+  - Link to "View in Costs" to jump to the filtered costs page
+  - **AC**: Given Project A has 3 allocated expenses totaling $150 and 2 payments totaling $3000, when I view the project page, then the Financials section shows costs: $150, revenue: $3000, profit: $2850, margin: 95%.
 
-**US-C-10: Deactivate a subscription** (Size: S)
-- "Deactivate" button on subscription expenses sets `isActive = false`
-- Deactivated subscriptions are excluded from "Generate Recurring"
-- Shown with a strikethrough/dimmed style in the expenses table
-- **AC**: Given I deactivate "Old Tool" subscription, when I click "Generate Recurring" next month, then "Old Tool" is not included. The expense still appears in historical views but is visually marked as inactive.
+- [ ] **US-C-10: Deactivate a subscription** (Size: S)
+  - "Deactivate" button on subscription expenses sets `isActive = false`
+  - Deactivated subscriptions are excluded from "Generate Recurring"
+  - Shown with a strikethrough/dimmed style in the expenses table
+  - **AC**: Given I deactivate "Old Tool" subscription, when I click "Generate Recurring" next month, then "Old Tool" is not included. The expense still appears in historical views but is visually marked as inactive.
 
-**US-C-11: Monthly burn rate widget on dashboard** (Size: S)
-- On the main `/dashboard` page, add a "Monthly Burn Rate" card
-- Sum of all active subscriptions' monthly-equivalent amounts (annual / 12, quarterly / 3)
-- Shows trend: up/down arrow comparing to last month
-- **AC**: Given 2 monthly subscriptions ($25 + $19) and 1 annual subscription ($120), when I view the dashboard, then monthly burn rate shows $54 ($25 + $19 + $10).
+- [ ] **US-C-11: Monthly burn rate widget on dashboard** (Size: S)
+  - On the main `/dashboard` page, add a "Monthly Burn Rate" card
+  - Sum of all active subscriptions' monthly-equivalent amounts (annual / 12, quarterly / 3)
+  - Shows trend: up/down arrow comparing to last month
+  - **AC**: Given 2 monthly subscriptions ($25 + $19) and 1 annual subscription ($120), when I view the dashboard, then monthly burn rate shows $54 ($25 + $19 + $10).
 
 ---
 
@@ -913,6 +913,7 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 | `DATABASE_URL` | Pooler (6543) | Direct (5432) | Direct (5432) |
 | `ANTHROPIC_API_KEY` | - | Yes | Yes |
 | `FIREFLIES_API_KEY` | - | Yes | Yes |
+| `FIRECRAWL_API_KEY` | - | Yes | Yes |
 | `OPENAI_API_KEY` | Yes | Yes | Yes |
 | `TRIGGER_SECRET_KEY` | Yes | N/A | Yes |
 | `GOOGLE_CLIENT_ID` | Yes | - | Yes |
@@ -937,7 +938,7 @@ Vercel auto-deploys via GitHub integration
 **Root `package.json`** (Trigger.dev tasks):
 - `@anthropic-ai/sdk` — Claude API
 - `openai` — Embeddings
-- `cheerio` — HTML parsing
+- `firecrawl-js` — Web scraping via Firecrawl API (replaces cheerio)
 - `whois-json` — Domain lookup
 
 **`web/package.json`** (Next.js):
@@ -952,6 +953,7 @@ Vercel auto-deploys via GitHub integration
 | Vercel Hobby | $0 |
 | Trigger.dev Free | $0 |
 | Claude API (~100 extractions + ~20 interview guides) | ~$6-28 |
+| Firecrawl Free (500 pages/mo) | $0 |
 | Fireflies Business | $19/seat |
 | Google Calendar API | $0 |
 | Sentry Free | $0 |

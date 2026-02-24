@@ -5,3 +5,6 @@ dist/
 *.tsbuildinfo
 
 .trigger
+
+# OAuth credentials
+gcp-oauth.keys.json
