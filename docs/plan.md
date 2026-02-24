@@ -31,7 +31,7 @@ Knowledge lives in scattered notes and memory.
 | 4 | Implementation Details (add, list, show) | Done |
 | 5 | Progress Tracking (log, timeline) | Done |
 | 6 | Blueprints (add, show, add-step, add-tool, apply) | Done |
-| 7 | CI + Polish | TODO |
+| 7 | CI + Polish | Done |
 
 CLI pattern: `bot <entity> <action> [args] [--flags]` — supports both flag mode (scriptable) and interactive mode (@clack/prompts).
 
@@ -213,7 +213,7 @@ FINANCIAL TRACKING:
 
 | Phase | Impact | Confidence | Ease | ICE Score | Effort |
 |---|:---:|:---:|:---:|:---:|---|
-| **Phase 0: Infrastructure** | 8 | 10 | 7 | 560 | ~3 days |
+| **Phase 0: Infrastructure** | 8 | 10 | 7 | 560 | Done |
 | **Phase 1: Fireflies + AI Extraction** | 9 | 8 | 6 | 432 | ~8 days |
 | **Phase 1.5: Meeting Preparation + Google Calendar** | 8 | 8 | 5 | 320 | ~11-13 days |
 | **Phase 2: Company Investigation** | 7 | 6 | 4 | 168 | ~6 days |
@@ -1085,10 +1085,10 @@ Add after Projects:
 3. `/api/health` returns `{ status: "healthy" }`
 4. GitHub push triggers CI and Vercel deploy
 
-**Phase 0 — Known Issues (TODO):**
-- **CI `npm ci --prefix web` fails**: `@sentry/nextjs` has optional peer deps (webpack and related packages) that aren't resolved into the lockfile locally but `npm ci` demands them in CI. Workaround options: (a) use `npm install --prefix web` instead of `npm ci`, (b) explicitly add webpack as a dev dependency in web, or (c) consolidate to a single lockfile with npm workspaces.
-- **CI `next build` fails without DATABASE_URL**: Static pages that query the DB (e.g., `/blueprints`) fail during `next build` in CI because there's no database connection. Fix options: (a) convert those pages to dynamic rendering (`export const dynamic = "force-dynamic"`), (b) provide a dummy `DATABASE_URL` env var in CI, or (c) skip the build step and rely on Vercel's build.
-- **Trigger.dev deploy workflow**: Requires `TRIGGER_ACCESS_TOKEN` (Personal Access Token from https://cloud.trigger.dev/account/tokens) as a GitHub secret, NOT `TRIGGER_SECRET_KEY`.
+**Phase 0 — Known Issues (Resolved):**
+- ~~**CI `npm ci --prefix web` fails**~~: Fixed — using `npm install --prefix web` instead of `npm ci`.
+- ~~**CI `next build` fails without DATABASE_URL**~~: Fixed — added `export const dynamic = "force-dynamic"` to all DB-dependent pages.
+- ~~**Trigger.dev deploy workflow**~~: Fixed — uses `TRIGGER_ACCESS_TOKEN` (Personal Access Token) as GitHub secret.
 
 ### Phase 1
 1. Add Fireflies API key → poll task runs → meetings appear in `/meetings`
