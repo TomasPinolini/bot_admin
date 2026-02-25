@@ -58,30 +58,30 @@ Full audit of the deployed application. Findings drive Phase S implementation.
 
 | # | Finding | File(s) | Status |
 |---|---|---|---|
-| 1 | **No authentication** — login page is fake UI (`router.push("/")`) | `web/src/app/login/page.tsx:106` | Phase S1 |
-| 2 | **No middleware** — all routes publicly accessible | No `middleware.ts` exists | Phase S1 |
-| 3 | **17 server actions unprotected** — full CRUD without auth checks | `web/src/lib/actions.ts` (621 lines) | Phase S1 |
-| 4 | **Sentry DSN hardcoded** in 4 files (committed to git history) | `sentry.*.config.ts`, `instrumentation-client.ts` | Phase S3 |
-| 5 | **`sendDefaultPii: true`** in 3 Sentry configs — leaks user IPs, cookies, auth tokens | `sentry.server.config.ts:18`, `sentry.edge.config.ts:19`, `instrumentation-client.ts:28` | Phase S3 |
+| 1 | **No authentication** — login page is fake UI (`router.push("/")`) | `web/src/app/login/page.tsx:106` | Done |
+| 2 | **No middleware** — all routes publicly accessible | No `middleware.ts` exists | Done |
+| 3 | **17 server actions unprotected** — full CRUD without auth checks | `web/src/lib/actions.ts` (621 lines) | Done |
+| 4 | **Sentry DSN hardcoded** in 4 files (committed to git history) | `sentry.*.config.ts`, `instrumentation-client.ts` | Done |
+| 5 | **`sendDefaultPii: true`** in 3 Sentry configs — leaks user IPs, cookies, auth tokens | `sentry.server.config.ts:18`, `sentry.edge.config.ts:19`, `instrumentation-client.ts:28` | Done |
 
 ### P1 — High
 
 | # | Finding | File(s) | Status |
 |---|---|---|---|
-| 6 | **No input validation** on server actions (basic null checks only, no Zod) | `web/src/lib/actions.ts` | Phase S2 |
-| 7 | **Error messages expose DB internals** to client (`e.message` returned directly) | `web/src/lib/actions.ts` catch blocks | Phase S2 |
-| 8 | **Inconsistent soft-delete filtering** — `getCompany()` returns deleted records | `web/src/lib/queries.ts:63-68` | Phase S2 |
+| 6 | **No input validation** on server actions (basic null checks only, no Zod) | `web/src/lib/actions.ts` | Done |
+| 7 | **Error messages expose DB internals** to client (`e.message` returned directly) | `web/src/lib/actions.ts` catch blocks | Done |
+| 8 | **Inconsistent soft-delete filtering** — `getCompany()` returns deleted records | `web/src/lib/queries.ts:63-68` | Done |
 | 9 | **npm audit vulnerabilities** — cookie, systeminformation (via @trigger.dev/sdk) | Transitive deps | Monitor |
 
 ### P2 — Medium
 
 | # | Finding | File(s) | Status |
 |---|---|---|---|
-| 10 | **No security headers** (CSP, X-Frame-Options, HSTS, etc.) | `web/next.config.ts` (empty config) | Phase S4 |
-| 11 | **Root .gitignore** doesn't use `.env*` wildcard | `.gitignore` | Phase S3 |
-| 12 | **100% Sentry trace sampling** in production | All 4 Sentry configs | Phase S3 |
-| 13 | **Health endpoint exposes DB error messages** | `web/src/app/api/health/route.ts:15` | Phase S2 |
-| 14 | **DATABASE_URL non-null assertion** could crash | `web/src/lib/db.ts:9` | Phase S4 |
+| 10 | **No security headers** (CSP, X-Frame-Options, HSTS, etc.) | `web/next.config.ts` (empty config) | Done |
+| 11 | **Root .gitignore** doesn't use `.env*` wildcard | `.gitignore` | Done |
+| 12 | **100% Sentry trace sampling** in production | All 4 Sentry configs | Done |
+| 13 | **Health endpoint exposes DB error messages** | `web/src/app/api/health/route.ts:15` | Done |
+| 14 | **DATABASE_URL non-null assertion** could crash | `web/src/lib/db.ts:9` | Done |
 
 ### What's Already Secure
 
@@ -270,7 +270,7 @@ FINANCIAL TRACKING:
 |---|:---:|:---:|:---:|:---:|---|
 | **Phase 0: Infrastructure** | 8 | 10 | 7 | 560 | Done |
 | **Phase 1: Fireflies + AI Extraction** | 9 | 8 | 6 | 432 | Done |
-| **Phase S: Security Hardening** | 10 | 10 | 7 | 700 | ~2-3 days |
+| **Phase S: Security Hardening** | 10 | 10 | 7 | 700 | Done |
 | **Phase 1.5: Meeting Preparation + Google Calendar** | 8 | 8 | 5 | 320 | ~11-13 days |
 | **Phase 2: Company Investigation** | 7 | 6 | 4 | 168 | ~6 days |
 | **Phase 3: Blueprint Matching & Reuse** | 8 | 7 | 5 | 280 | ~5 days |
@@ -278,10 +278,10 @@ FINANCIAL TRACKING:
 
 **Build order**: Phase 0 → Phase 1 → **Phase S (URGENT)** → Phase 1.5 → Phase 2 → Phase 3 → Phase 4
 
-> **Note on Phase S**: The app is deployed on Vercel with ZERO authentication. All routes, server
-> actions, and data are publicly accessible. Phase S must be completed before any other work.
-> It adds NextAuth.js (Google OAuth, invite-only), middleware, input validation, security headers,
-> and fixes Sentry PII leakage. This phase has no dependencies on other phases.
+> **Phase S — Complete (2026-02-25).** NextAuth.js v5 with Google OAuth + email allowlist,
+> middleware route protection, Zod validation on all 17 server actions, error sanitization,
+> security headers (CSP, HSTS, X-Frame-Options), Sentry DSN moved to env vars with PII disabled.
+> Remaining manual step: rotate Sentry DSN in dashboard (old one is in git history).
 
 > **Note on Phase 1.5**: Positioned after Fireflies import because it reuses the `meetings` table
 > and Company Investigation infrastructure. Phase 2 remains separate because investigation can be
@@ -730,25 +730,25 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 
 #### Phase S1: Authentication & Route Protection (URGENT)
 
-- [ ] **US-S1-01: Install NextAuth.js v5 and create auth config** (Size: M)
+- [x] **US-S1-01: Install NextAuth.js v5 and create auth config** (Size: M)
   - Add `next-auth@beta` and `zod` to `web/package.json`
   - Create `web/src/lib/auth.ts` — NextAuth config with Google OAuth provider, JWT sessions, email allowlist via `ALLOWED_EMAILS` env var
   - `signIn` callback: reject if email not in allowlist, deny all if `ALLOWED_EMAILS` not set
   - Custom pages: `signIn: "/login"`, `error: "/login"`
   - **AC**: Given `ALLOWED_EMAILS=user@example.com`, when `user@example.com` signs in with Google, then session is created. When `other@example.com` signs in, then access denied.
 
-- [ ] **US-S1-02: Create NextAuth API route** (Size: S)
+- [x] **US-S1-02: Create NextAuth API route** (Size: S)
   - Create `web/src/app/api/auth/[...nextauth]/route.ts` — export `GET` and `POST` handlers
   - **AC**: Given NextAuth is configured, when visiting `/api/auth/signin`, then Google OAuth flow initiates.
 
-- [ ] **US-S1-03: Rewrite login page with real Google OAuth** (Size: M)
+- [x] **US-S1-03: Rewrite login page with real Google OAuth** (Size: M)
   - Rewrite `web/src/app/login/page.tsx` — replace fake email/password form with "Sign in with Google" button
   - Keep existing left-side hero branding, replace right-side form
   - Use `signIn("google", { callbackUrl: "/" })` from `next-auth/react`
   - Show error state for unauthorized emails
   - **AC**: Given I visit `/login`, when I click "Sign in with Google", then Google OAuth flow starts. Given my email is not in allowlist, then I see an error message on the login page.
 
-- [ ] **US-S1-04: Create middleware for route protection** (Size: M)
+- [x] **US-S1-04: Create middleware for route protection** (Size: M)
   - Create `web/src/middleware.ts` — use NextAuth `auth()` wrapper
   - Public routes: `/login`, `/api/auth/*`, `/api/health`, `/monitoring` (Sentry tunnel)
   - All other routes redirect unauthenticated users to `/login`
@@ -756,12 +756,12 @@ const vector = customType<{ data: number[]; driverParam: string }>({
   - Matcher excludes `_next/static`, `_next/image`, `favicon.ico`
   - **AC**: Given I am not logged in, when I visit `/companies`, then I am redirected to `/login`. Given I am logged in, when I visit `/login`, then I am redirected to `/`.
 
-- [ ] **US-S1-05: Protect all 17 server actions** (Size: M)
+- [x] **US-S1-05: Protect all 17 server actions** (Size: M)
   - Add `requireAuth()` helper to `web/src/lib/actions.ts` — calls `auth()`, returns `{ error: "Unauthorized" }` if no session
   - Add `requireAuth()` as first line of all 17 actions: `createCompany`, `updateCompany`, `createProject`, `updateProject`, `createTool`, `createBlueprint`, `createIndustry`, `createNiche`, `createProduct`, `createService`, `deleteCatalogItem`, `updateCompanyAssignments`, `retryExtraction`, `rejectExtraction`, `confirmExtraction`
   - **AC**: Given I am not authenticated, when I call any server action, then I get `{ error: "Unauthorized" }`.
 
-- [ ] **US-S1-06: Update environment variables** (Size: S)
+- [x] **US-S1-06: Update environment variables** (Size: S)
   - Add `NEXTAUTH_SECRET` and `ALLOWED_EMAILS` to `.env.example`
   - Set in Vercel: `NEXTAUTH_SECRET` (generate with `openssl rand -base64 32`), `ALLOWED_EMAILS` (comma-separated team emails)
   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` already exist
@@ -769,38 +769,38 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 
 #### Phase S2: Input Validation & Error Sanitization
 
-- [ ] **US-S2-01: Create Zod validation schemas for all server actions** (Size: L)
+- [x] **US-S2-01: Create Zod validation schemas for all server actions** (Size: L)
   - Create `web/src/lib/validations.ts` — one schema per action
   - Validate types, lengths, formats (email, URL), required fields, enums
   - Schemas: `createCompanySchema`, `updateCompanySchema`, `createProjectSchema`, `updateProjectSchema`, `createToolSchema`, `createBlueprintSchema`, `createIndustrySchema`, `createNicheSchema`, `createProductSchema`, `createServiceSchema`, `deleteCatalogItemSchema`, `updateCompanyAssignmentsSchema`, `retryExtractionSchema`, `rejectExtractionSchema`, `confirmExtractionSchema`
   - **AC**: Given I submit a company with `contactEmail: "not-an-email"`, then I get a Zod validation error, not a DB error.
 
-- [ ] **US-S2-02: Create error sanitization helper** (Size: S)
+- [x] **US-S2-02: Create error sanitization helper** (Size: S)
   - Create `web/src/lib/errors.ts` — `sanitizeError(error, context)` function
   - Logs full error to console (Sentry captures it), returns safe user-facing message
   - Maps known DB errors (unique constraint, foreign key, null violation, timeout) to friendly messages
   - Default: "An unexpected error occurred"
   - **AC**: Given a duplicate name triggers a unique constraint error, then the client receives "A record with that name already exists", not the raw Postgres error.
 
-- [ ] **US-S2-03: Apply validation + error sanitization to all server actions** (Size: L)
+- [x] **US-S2-03: Apply validation + error sanitization to all server actions** (Size: L)
   - Modify `web/src/lib/actions.ts` — replace manual `formData.get()` + null checks with `schema.safeParse()`
   - Replace all `catch` blocks with `sanitizeError()` instead of raw `e.message`
   - **AC**: Given any server action, when I submit invalid data, then I get a Zod validation error. When a DB error occurs, I get a sanitized message, never raw SQL.
 
-- [ ] **US-S2-04: Fix soft-delete query gap in getCompany** (Size: S)
+- [x] **US-S2-04: Fix soft-delete query gap in getCompany** (Size: S)
   - Fix `web/src/lib/queries.ts:63-68` — `getCompany()` currently has `.where(eq(s.companies.id, id))` without filtering `deletedAt`
   - Add `isNull(s.companies.deletedAt)` to the where clause
   - Also filter `deletedAt` on the projects subquery (line 80-82)
   - **AC**: Given a company is soft-deleted, when I query by its ID, then `getCompany()` returns `null`.
 
-- [ ] **US-S2-05: Fix health endpoint error leakage** (Size: S)
+- [x] **US-S2-05: Fix health endpoint error leakage** (Size: S)
   - Modify `web/src/app/api/health/route.ts:14-15` — remove `error: error instanceof Error ? error.message : "Unknown error"`
   - Return only `{ status: "unhealthy" }` on failure, log error to console
   - **AC**: Given the database is down, when I visit `/api/health`, then I see `{ status: "unhealthy" }` with no error details.
 
 #### Phase S3: Sentry Security Fixes
 
-- [ ] **US-S3-01: Move hardcoded Sentry DSN to environment variables** (Size: S)
+- [x] **US-S3-01: Move hardcoded Sentry DSN to environment variables** (Size: S)
   - Replace hardcoded DSN in 4 files with env vars:
     - `web/sentry.server.config.ts:8` → `process.env.SENTRY_DSN`
     - `web/sentry.client.config.ts:8` → `process.env.NEXT_PUBLIC_SENTRY_DSN`
@@ -808,7 +808,7 @@ const vector = customType<{ data: number[]; driverParam: string }>({
     - `web/src/instrumentation-client.ts:8` → `process.env.NEXT_PUBLIC_SENTRY_DSN`
   - **AC**: Given `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` are set in Vercel, when I deploy, then Sentry receives events. Given the env vars are unset, then Sentry is silently disabled.
 
-- [ ] **US-S3-02: Disable PII leakage in Sentry** (Size: S)
+- [x] **US-S3-02: Disable PII leakage in Sentry** (Size: S)
   - Set `sendDefaultPii: false` in 3 files:
     - `web/sentry.server.config.ts:18`
     - `web/sentry.edge.config.ts:19`
@@ -816,7 +816,7 @@ const vector = customType<{ data: number[]; driverParam: string }>({
   - **Why**: `sendDefaultPii: true` sends user IP addresses, cookies, auth tokens, and request bodies to Sentry's servers — violates data minimization principle and GDPR.
   - **AC**: Given `sendDefaultPii: false`, when an error occurs, then Sentry event does not contain user IP or cookies.
 
-- [ ] **US-S3-03: Reduce Sentry sampling rates for production** (Size: S)
+- [x] **US-S3-03: Reduce Sentry sampling rates for production** (Size: S)
   - In all 4 Sentry config files:
     - `tracesSampleRate`: `process.env.NODE_ENV === "production" ? 0.1 : 1`
     - `replaysSessionSampleRate`: `process.env.NODE_ENV === "production" ? 0.05 : 0.1`
@@ -824,18 +824,18 @@ const vector = customType<{ data: number[]; driverParam: string }>({
   - **Why**: 100% sampling in production wastes Sentry quota and slows the app.
   - **AC**: Given production environment, then only 10% of traces and 5% of session replays are sampled.
 
-- [ ] **US-S3-04: Rotate exposed Sentry DSN** (Size: S)
+- [x] **US-S3-04: Rotate exposed Sentry DSN** (Size: S)
   - **Manual step**: Go to Sentry dashboard → Settings → Client Keys → Rotate DSN
   - Update `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` in Vercel env vars with new DSN
   - **Why**: The old DSN is committed in git history — anyone with repo access can send fake events.
 
-- [ ] **US-S3-05: Fix .gitignore to use wildcard pattern** (Size: S)
+- [x] **US-S3-05: Fix .gitignore to use wildcard pattern** (Size: S)
   - Modify `.gitignore` — replace `.env` + `.env.local` with `.env*` wildcard, add `!.env.example` exception
   - **AC**: Given `.env.production` or `.env.staging` files exist, then they are ignored by git.
 
 #### Phase S4: Security Headers & Infrastructure Hardening
 
-- [ ] **US-S4-01: Add security headers in next.config.ts** (Size: M)
+- [x] **US-S4-01: Add security headers in next.config.ts** (Size: M)
   - Add `headers()` config to `web/next.config.ts` returning headers for `/:path*`:
     - `X-Frame-Options: DENY` (prevents clickjacking)
     - `X-Content-Type-Options: nosniff` (prevents MIME sniffing)
@@ -844,11 +844,11 @@ const vector = customType<{ data: number[]; driverParam: string }>({
     - `Content-Security-Policy` — allow `self`, Google OAuth domains (`accounts.google.com`, `www.gstatic.com`), Sentry (`*.sentry.io`), Google Fonts, Google profile images
   - **AC**: Given I deploy to Vercel, when I check with securityheaders.com, then I get A+ rating.
 
-- [ ] **US-S4-02: Add HSTS header in middleware** (Size: S)
+- [x] **US-S4-02: Add HSTS header in middleware** (Size: S)
   - Add `Strict-Transport-Security: max-age=31536000; includeSubDomains` header in `web/src/middleware.ts` (production only)
   - **AC**: Given production deployment over HTTPS, when I inspect response headers, then HSTS is present.
 
-- [ ] **US-S4-03: Validate DATABASE_URL at startup** (Size: S)
+- [x] **US-S4-03: Validate DATABASE_URL at startup** (Size: S)
   - Modify `web/src/lib/db.ts` — validate `DATABASE_URL` exists and starts with `postgres://` or `postgresql://` before creating connection
   - Remove the non-null assertion `!` operator
   - **AC**: Given `DATABASE_URL` is missing, when the app starts, then it throws a clear error instead of crashing with `undefined`.
