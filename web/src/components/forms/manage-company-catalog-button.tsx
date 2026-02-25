@@ -55,7 +55,7 @@ export function ManageCompanyCatalogButton({
     fd.set("ids", JSON.stringify(Array.from(selected)));
     const result = await updateCompanyAssignments(fd);
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       setOpen(false);

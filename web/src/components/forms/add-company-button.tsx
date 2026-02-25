@@ -18,7 +18,7 @@ export function AddCompanyButton() {
     setError("");
     const result = await createCompany(new FormData(e.currentTarget));
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       setOpen(false);

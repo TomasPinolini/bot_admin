@@ -64,7 +64,7 @@ export async function getCompany(id: string) {
   const [company] = await db
     .select()
     .from(s.companies)
-    .where(eq(s.companies.id, id))
+    .where(and(eq(s.companies.id, id), isNull(s.companies.deletedAt)))
     .limit(1);
 
   if (!company) return null;
@@ -78,7 +78,7 @@ export async function getCompany(id: string) {
         updatedAt: s.projects.updatedAt,
       })
       .from(s.projects)
-      .where(eq(s.projects.companyId, id))
+      .where(and(eq(s.projects.companyId, id), isNull(s.projects.deletedAt)))
       .orderBy(desc(s.projects.updatedAt)),
 
     db

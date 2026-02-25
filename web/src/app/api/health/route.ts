@@ -9,11 +9,9 @@ export async function GET() {
       { status: 200 },
     );
   } catch (error) {
+    console.error("[health]", error);
     return Response.json(
-      {
-        status: "unhealthy",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+      { status: "unhealthy" },
       { status: 503 },
     );
   }

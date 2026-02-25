@@ -19,7 +19,7 @@ export function NewBlueprintButton() {
     setError("");
     const result = await createBlueprint(new FormData(e.currentTarget));
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       setOpen(false);

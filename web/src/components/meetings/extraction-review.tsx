@@ -174,7 +174,7 @@ export function ExtractionReview({
     });
 
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       router.push("/meetings");
@@ -186,7 +186,7 @@ export function ExtractionReview({
     setError("");
     const result = await rejectExtraction(meetingId);
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       router.push("/meetings");

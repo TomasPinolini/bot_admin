@@ -35,7 +35,7 @@ export function EditProjectButton({ project }: { project: Project }) {
     setError("");
     const result = await updateProject(new FormData(e.currentTarget));
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       setOpen(false);

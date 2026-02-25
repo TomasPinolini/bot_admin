@@ -6,66 +6,97 @@ import { eq, and } from "drizzle-orm";
 import { generateId } from "./ids";
 import { revalidatePath } from "next/cache";
 import { triggerTask } from "./trigger";
+import { auth } from "./auth";
+import { sanitizeError } from "./errors";
+import {
+  createCompanySchema,
+  updateCompanySchema,
+  createProjectSchema,
+  updateProjectSchema,
+  createToolSchema,
+  createBlueprintSchema,
+  createIndustrySchema,
+  createNicheSchema,
+  createProductSchema,
+  createServiceSchema,
+  deleteCatalogItemSchema,
+  updateCompanyAssignmentsSchema,
+  confirmExtractionSchema,
+} from "./validations";
+
+async function requireAuth() {
+  const session = await auth();
+  if (!session) return { error: "Unauthorized" };
+  return null;
+}
+
+function formToObject(formData: FormData, fields: string[]): Record<string, unknown> {
+  const obj: Record<string, unknown> = {};
+  for (const field of fields) {
+    obj[field] = formData.get(field) as string | null;
+  }
+  return obj;
+}
 
 // ── Companies ───────────────────────────────────────────────
 
 export async function createCompany(formData: FormData) {
-  const name = formData.get("name") as string | null;
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createCompanySchema.safeParse(
+    formToObject(formData, ["name", "contactName", "contactEmail", "contactPhone", "website"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("company");
     await db.insert(s.companies).values({
       id,
-      name: name.trim(),
-      contactName: (formData.get("contactName") as string)?.trim() || null,
-      contactEmail: (formData.get("contactEmail") as string)?.trim() || null,
-      contactPhone: (formData.get("contactPhone") as string)?.trim() || null,
-      website: (formData.get("website") as string)?.trim() || null,
+      name: parsed.data.name,
+      contactName: parsed.data.contactName,
+      contactEmail: parsed.data.contactEmail,
+      contactPhone: parsed.data.contactPhone,
+      website: parsed.data.website,
     });
     revalidatePath("/companies");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A company with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createCompany") };
   }
 }
 
 export async function updateCompany(formData: FormData) {
-  const id = formData.get("id") as string | null;
-  const name = formData.get("name") as string | null;
-  if (!id) return { error: "Missing company ID" };
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = updateCompanySchema.safeParse(
+    formToObject(formData, [
+      "id", "name", "contactName", "contactEmail", "contactPhone", "website",
+      "location", "companySize", "revenueRange", "yearsInBusiness",
+      "currentTechStack", "socialLinkedin", "socialTwitter",
+    ]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
-    const techStackRaw = (formData.get("currentTechStack") as string)?.trim();
-    const techStack = techStackRaw
-      ? techStackRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    const { id, currentTechStack, socialLinkedin, socialTwitter, yearsInBusiness, ...rest } = parsed.data;
+
+    const techStack = currentTechStack
+      ? currentTechStack.split(",").map((s) => s.trim()).filter(Boolean)
       : null;
 
-    const socialLinkedin = (formData.get("socialLinkedin") as string)?.trim();
-    const socialTwitter = (formData.get("socialTwitter") as string)?.trim();
     const socialMedia =
       socialLinkedin || socialTwitter
         ? { linkedin: socialLinkedin || undefined, twitter: socialTwitter || undefined }
         : null;
 
-    const yearsRaw = (formData.get("yearsInBusiness") as string)?.trim();
-
     await db
       .update(s.companies)
       .set({
-        name: name.trim(),
-        contactName: (formData.get("contactName") as string)?.trim() || null,
-        contactEmail: (formData.get("contactEmail") as string)?.trim() || null,
-        contactPhone: (formData.get("contactPhone") as string)?.trim() || null,
-        website: (formData.get("website") as string)?.trim() || null,
-        location: (formData.get("location") as string)?.trim() || null,
-        companySize: (formData.get("companySize") as string)?.trim() || null,
-        revenueRange: (formData.get("revenueRange") as string)?.trim() || null,
-        yearsInBusiness: yearsRaw ? parseInt(yearsRaw, 10) : null,
+        ...rest,
+        yearsInBusiness: yearsInBusiness ?? null,
         currentTechStack: techStack,
         socialMedia,
         updatedAt: new Date(),
@@ -76,55 +107,56 @@ export async function updateCompany(formData: FormData) {
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A company with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "updateCompany") };
   }
 }
 
 // ── Projects ────────────────────────────────────────────────
 
 export async function createProject(formData: FormData) {
-  const companyId = formData.get("companyId") as string | null;
-  const name = formData.get("name") as string | null;
-  if (!companyId?.trim()) return { error: "Company is required" };
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createProjectSchema.safeParse(
+    formToObject(formData, ["companyId", "name", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("project");
     const today = new Date().toISOString().split("T")[0];
     await db.insert(s.projects).values({
       id,
-      companyId: companyId.trim(),
-      name: name.trim(),
-      description: (formData.get("description") as string)?.trim() || null,
+      companyId: parsed.data.companyId,
+      name: parsed.data.name,
+      description: parsed.data.description,
       startDate: today,
     });
     revalidatePath("/projects");
-    revalidatePath(`/companies/${companyId}`);
+    revalidatePath(`/companies/${parsed.data.companyId}`);
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "createProject") };
   }
 }
 
 export async function updateProject(formData: FormData) {
-  const id = formData.get("id") as string | null;
-  const name = formData.get("name") as string | null;
-  if (!id) return { error: "Missing project ID" };
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = updateProjectSchema.safeParse(
+    formToObject(formData, ["id", "name", "description", "status", "targetDate"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
-    const status = (formData.get("status") as string) || "planning";
+    const { id, status, ...rest } = parsed.data;
     await db
       .update(s.projects)
       .set({
-        name: name.trim(),
-        description: (formData.get("description") as string)?.trim() || null,
+        ...rest,
         status,
-        targetDate: (formData.get("targetDate") as string)?.trim() || null,
         completedDate: status === "completed" ? new Date().toISOString().split("T")[0] : null,
         updatedAt: new Date(),
       })
@@ -134,162 +166,182 @@ export async function updateProject(formData: FormData) {
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "updateProject") };
   }
 }
 
 // ── Tools ───────────────────────────────────────────────────
 
 export async function createTool(formData: FormData) {
-  const name = formData.get("name") as string | null;
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createToolSchema.safeParse(
+    formToObject(formData, ["name", "category", "url", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("tool");
     await db.insert(s.tools).values({
       id,
-      name: name.trim(),
-      category: (formData.get("category") as string)?.trim() || null,
-      url: (formData.get("url") as string)?.trim() || null,
-      description: (formData.get("description") as string)?.trim() || null,
+      name: parsed.data.name,
+      category: parsed.data.category,
+      url: parsed.data.url,
+      description: parsed.data.description,
     });
     revalidatePath("/tools");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A tool with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createTool") };
   }
 }
 
 // ── Blueprints ──────────────────────────────────────────────
 
 export async function createBlueprint(formData: FormData) {
-  const name = formData.get("name") as string | null;
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createBlueprintSchema.safeParse(
+    formToObject(formData, ["name", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("blueprint");
     await db.insert(s.blueprints).values({
       id,
-      name: name.trim(),
-      description: (formData.get("description") as string)?.trim() || null,
+      name: parsed.data.name,
+      description: parsed.data.description,
     });
     revalidatePath("/blueprints");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A blueprint with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createBlueprint") };
   }
 }
 
 // ── Catalog: Industries ─────────────────────────────────────
 
 export async function createIndustry(formData: FormData) {
-  const name = formData.get("name") as string | null;
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createIndustrySchema.safeParse(
+    formToObject(formData, ["name", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("industry");
     await db.insert(s.industries).values({
       id,
-      name: name.trim(),
-      description: (formData.get("description") as string)?.trim() || null,
+      name: parsed.data.name,
+      description: parsed.data.description,
     });
     revalidatePath("/catalog");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "An industry with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createIndustry") };
   }
 }
 
 // ── Catalog: Niches ─────────────────────────────────────────
 
 export async function createNiche(formData: FormData) {
-  const industryId = formData.get("industryId") as string | null;
-  const name = formData.get("name") as string | null;
-  if (!industryId?.trim()) return { error: "Industry is required" };
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createNicheSchema.safeParse(
+    formToObject(formData, ["industryId", "name", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("niche");
     await db.insert(s.niches).values({
       id,
-      industryId: industryId.trim(),
-      name: name.trim(),
-      description: (formData.get("description") as string)?.trim() || null,
+      industryId: parsed.data.industryId,
+      name: parsed.data.name,
+      description: parsed.data.description,
     });
     revalidatePath("/catalog");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A niche with that name already exists in this industry" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createNiche") };
   }
 }
 
 // ── Catalog: Products ───────────────────────────────────────
 
 export async function createProduct(formData: FormData) {
-  const name = formData.get("name") as string | null;
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createProductSchema.safeParse(
+    formToObject(formData, ["name", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("product");
     await db.insert(s.products).values({
       id,
-      name: name.trim(),
-      description: (formData.get("description") as string)?.trim() || null,
+      name: parsed.data.name,
+      description: parsed.data.description,
     });
     revalidatePath("/catalog");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A product with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createProduct") };
   }
 }
 
 // ── Catalog: Services ───────────────────────────────────────
 
 export async function createService(formData: FormData) {
-  const name = formData.get("name") as string | null;
-  if (!name?.trim()) return { error: "Name is required" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = createServiceSchema.safeParse(
+    formToObject(formData, ["name", "description"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
     const id = generateId("service");
     await db.insert(s.services).values({
       id,
-      name: name.trim(),
-      description: (formData.get("description") as string)?.trim() || null,
+      name: parsed.data.name,
+      description: parsed.data.description,
     });
     revalidatePath("/catalog");
     revalidatePath("/");
     return { success: true, id };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    if (msg.includes("unique")) return { error: "A service with that name already exists" };
-    return { error: msg };
+    return { error: sanitizeError(e, "createService") };
   }
 }
 
 // ── Catalog: Delete ─────────────────────────────────────────
 
 export async function deleteCatalogItem(formData: FormData) {
-  const type = formData.get("type") as string | null;
-  const id = formData.get("id") as string | null;
-  if (!type || !id) return { error: "Missing type or id" };
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = deleteCatalogItemSchema.safeParse(
+    formToObject(formData, ["type", "id"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
 
   try {
+    const { type, id } = parsed.data;
     const now = new Date();
     if (type === "industry") {
       await db.update(s.industries).set({ deletedAt: now }).where(eq(s.industries.id, id));
@@ -299,27 +351,27 @@ export async function deleteCatalogItem(formData: FormData) {
       await db.update(s.products).set({ deletedAt: now }).where(eq(s.products.id, id));
     } else if (type === "service") {
       await db.update(s.services).set({ deletedAt: now }).where(eq(s.services.id, id));
-    } else {
-      return { error: "Invalid type" };
     }
     revalidatePath("/catalog");
     revalidatePath("/companies");
     return { success: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "deleteCatalogItem") };
   }
 }
 
 // ── Company Assignments ─────────────────────────────────────
 
 export async function updateCompanyAssignments(formData: FormData) {
-  const companyId = formData.get("companyId") as string | null;
-  const type = formData.get("type") as string | null;
-  const idsJson = formData.get("ids") as string | null;
-  if (!companyId || !type) return { error: "Missing companyId or type" };
+  const authError = await requireAuth();
+  if (authError) return authError;
 
-  const ids: string[] = idsJson ? JSON.parse(idsJson) : [];
+  const parsed = updateCompanyAssignmentsSchema.safeParse(
+    formToObject(formData, ["companyId", "type", "ids"]),
+  );
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const { companyId, type, ids } = parsed.data;
 
   try {
     if (type === "industry") {
@@ -355,48 +407,47 @@ export async function updateCompanyAssignments(formData: FormData) {
           }))
         );
       }
-    } else {
-      return { error: "Invalid type" };
     }
     revalidatePath("/catalog");
     revalidatePath(`/companies/${companyId}`);
     revalidatePath("/companies");
     return { success: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "updateCompanyAssignments") };
   }
 }
 
 // ── Meetings: Retry Extraction ──────────────────────────────
 
 export async function retryExtraction(meetingId: string) {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   try {
-    // Delete existing extraction if any
     await db
       .delete(s.meetingExtractions)
       .where(eq(s.meetingExtractions.meetingId, meetingId));
 
-    // Reset meeting status
     await db
       .update(s.meetings)
       .set({ status: "pending_extraction", updatedAt: new Date() })
       .where(eq(s.meetings.id, meetingId));
 
-    // Trigger extraction task
     await triggerTask("extract-meeting", { meetingId });
 
     revalidatePath("/meetings");
     return { success: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "retryExtraction") };
   }
 }
 
 // ── Meetings: Reject Extraction ─────────────────────────────
 
 export async function rejectExtraction(meetingId: string) {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   try {
     await db
       .update(s.meetings)
@@ -412,8 +463,7 @@ export async function rejectExtraction(meetingId: string) {
     revalidatePath(`/meetings/${meetingId}/review`);
     return { success: true };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "rejectExtraction") };
   }
 }
 
@@ -422,8 +472,8 @@ export async function rejectExtraction(meetingId: string) {
 interface ConfirmPayload {
   meetingId: string;
   companyAction: "link" | "create";
-  companyId?: string; // when linking
-  companyName?: string; // when creating
+  companyId?: string;
+  companyName?: string;
   companyData: {
     contactName?: string;
     contactEmail?: string;
@@ -451,14 +501,18 @@ interface ConfirmPayload {
 }
 
 export async function confirmExtraction(payload: ConfirmPayload) {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
+  const parsed = confirmExtractionSchema.safeParse(payload);
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
   try {
-    // Use a transaction for atomicity
     const result = await db.transaction(async (tx) => {
       // 1. Resolve company
       let companyId: string;
       if (payload.companyAction === "link" && payload.companyId) {
         companyId = payload.companyId;
-        // Update company with enrichment data
         await tx
           .update(s.companies)
           .set({
@@ -507,7 +561,6 @@ export async function confirmExtraction(payload: ConfirmPayload) {
         });
       }
 
-      // Link industry to company if resolved
       if (industryId) {
         await tx
           .delete(s.companyIndustries)
@@ -531,7 +584,6 @@ export async function confirmExtraction(payload: ConfirmPayload) {
             name: p.name!.trim(),
           });
         }
-        // Check if junction already exists
         const existing = await tx
           .select({ id: s.companyProducts.id })
           .from(s.companyProducts)
@@ -614,7 +666,6 @@ export async function confirmExtraction(payload: ConfirmPayload) {
     revalidatePath("/");
     return { success: true, companyId: result.companyId };
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return { error: msg };
+    return { error: sanitizeError(e, "confirmExtraction") };
   }
 }

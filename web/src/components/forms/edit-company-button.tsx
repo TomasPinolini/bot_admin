@@ -42,7 +42,7 @@ export function EditCompanyButton({ company }: { company: Company }) {
     setError("");
     const result = await updateCompany(new FormData(e.currentTarget));
     setPending(false);
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
     } else {
       setOpen(false);
