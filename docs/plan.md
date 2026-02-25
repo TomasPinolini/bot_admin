@@ -214,7 +214,7 @@ FINANCIAL TRACKING:
 | Phase | Impact | Confidence | Ease | ICE Score | Effort |
 |---|:---:|:---:|:---:|:---:|---|
 | **Phase 0: Infrastructure** | 8 | 10 | 7 | 560 | Done |
-| **Phase 1: Fireflies + AI Extraction** | 9 | 8 | 6 | 432 | ~8 days |
+| **Phase 1: Fireflies + AI Extraction** | 9 | 8 | 6 | 432 | Done |
 | **Phase 1.5: Meeting Preparation + Google Calendar** | 8 | 8 | 5 | 320 | ~11-13 days |
 | **Phase 2: Company Investigation** | 7 | 6 | 4 | 168 | ~6 days |
 | **Phase 3: Blueprint Matching & Reuse** | 8 | 7 | 5 | 280 | ~5 days |
@@ -598,14 +598,14 @@ const vector = customType<{ data: number[]; driverParam: string }>({
 
 ### Phase 1: Fireflies Import + AI Extraction
 
-- [ ] **US-P1-01: Poll Fireflies for new transcripts** (Size: M)
+- [x] **US-P1-01: Poll Fireflies for new transcripts** (Size: M)
   - Trigger.dev `schedules.task` runs every 15 min
   - Queries Fireflies GraphQL API for transcripts completed since last sync
   - Creates `meetings` rows (status: `pending_extraction`)
   - Skips duplicates via `firefliesTranscriptId` unique constraint
   - **AC**: Given API key configured, when poll runs, then new transcripts appear as meetings with `pending_extraction` status. If API unreachable, retries 3x with backoff.
 
-- [ ] **US-P1-02: Extract structured data via Claude** (Size: L)
+- [x] **US-P1-02: Extract structured data via Claude** (Size: L)
   - Trigger.dev task chained from sync task
   - Sends meeting `aiSummary` to Claude API with structured extraction prompt using `tool_use`
   - Extracts: company name, contact info, website, location, size, revenue, tech stack, social media, industry, niche, products, services, stakeholders, budget, pain points, requirements, timeline, urgency, follow-up items
@@ -614,14 +614,14 @@ const vector = customType<{ data: number[]; driverParam: string }>({
   - Stores result in `meeting_extractions` (status: `pending_review`)
   - **AC**: Given a meeting with `pending_extraction` status, when extraction task runs, then extraction row is created with per-field confidence scores. If Claude fails after retries, meeting status set to `extraction_failed`.
 
-- [ ] **US-P1-03: Match extracted entities to existing DB records** (Size: M)
+- [x] **US-P1-03: Match extracted entities to existing DB records** (Size: M)
   - Compare extracted company name against `companies` table (case-insensitive ILIKE + Levenshtein distance)
   - Compare catalog items against respective tables
   - Confidence scoring: exact match = 1.0, case-insensitive = 0.95, substring = 0.7, website domain match = 0.8, no match = 0.0
   - Store match suggestions in extraction's `matchSuggestions` jsonb
   - Update extraction status to `ready_for_review`
 
-- [ ] **US-P1-04: Review and confirm extracted data** (Size: L)
+- [x] **US-P1-04: Review and confirm extracted data** (Size: L)
   - Full-page review screen at `/meetings/[id]/review`
   - Sections: Meeting Info (read-only), Company (editable fields + match dropdown), Catalog (per-item confidence + select existing or create new), Meeting Details (editable with include/exclude checkboxes)
   - Confidence badges: green >= 0.8, yellow 0.5-0.79, red < 0.5
@@ -630,20 +630,22 @@ const vector = customType<{ data: number[]; driverParam: string }>({
   - "Reject": marks as rejected, no DB writes, redirects to `/meetings`
   - **AC**: Given extraction with `ready_for_review` status, when I confirm, then company is created/linked, catalog entities matched/created, and meeting status becomes `reviewed`. When I reject, no writes occur.
 
-- [ ] **US-P1-05: Meetings list page** (Size: S)
+- [x] **US-P1-05: Meetings list page** (Size: S)
   - `/meetings` with table: Title, Date, Duration, Company (if linked), Status badge
   - Sorted by date descending
   - Links to review page if `ready_for_review`, otherwise read-only detail
   - "Meetings" nav item in sidebar (Mic icon)
 
-- [ ] **US-P1-06: Retry failed extractions** (Size: S)
+- [x] **US-P1-06: Retry failed extractions** (Size: S)
   - "Retry Extraction" button on meetings with `extraction_failed` status
   - Resets to `pending_extraction` and triggers extraction task
 
-- [ ] **US-P1-07: Enrich companies table** (Size: S)
+- [x] **US-P1-07: Enrich companies table** (Size: S)
   - Add new nullable columns to `companies` via Drizzle migration
   - Display new fields on company detail page when present
   - Include in edit company form
+
+> **Phase 1 — Pending setup**: `ANTHROPIC_API_KEY` still needs to be added to both `.env` (local) and the Trigger.dev dashboard. The key is from a shared Anthropic account. `FIREFLIES_API_KEY` also needs to be set. Once both keys are configured, the sync-fireflies scheduled task and Claude extraction will be fully operational.
 
 ### Phase 1.5: Meeting Preparation
 
