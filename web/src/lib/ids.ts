@@ -13,6 +13,8 @@ const PREFIXES = {
   companyNiche: "cn",
   companyProduct: "cp",
   companyService: "cs",
+  meeting: "mt",
+  meetingExtraction: "mx",
 } as const;
 
 type EntityType = keyof typeof PREFIXES;

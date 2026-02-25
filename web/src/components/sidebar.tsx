@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Building2,
+  Mic,
   FolderKanban,
   Layers,
   Wrench,
@@ -16,6 +17,7 @@ import {
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/" },
   { label: "Companies", icon: Building2, href: "/companies" },
+  { label: "Meetings", icon: Mic, href: "/meetings" },
   { label: "Projects", icon: FolderKanban, href: "/projects" },
   { label: "Blueprints", icon: Layers, href: "/blueprints" },
   { label: "Tools", icon: Wrench, href: "/tools" },

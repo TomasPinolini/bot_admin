@@ -30,6 +30,12 @@ export default async function CompanyDetailPage({
     contactEmail: company.contactEmail,
     contactPhone: company.contactPhone,
     website: company.website,
+    location: company.location,
+    companySize: company.companySize,
+    revenueRange: company.revenueRange,
+    yearsInBusiness: company.yearsInBusiness,
+    currentTechStack: company.currentTechStack,
+    socialMedia: company.socialMedia,
   };
 
   const assignedIndustryIds = company.industries.map((i) => i.id);
@@ -134,6 +140,51 @@ export default async function CompanyDetailPage({
               </div>
             </div>
           </div>
+
+          {/* Enrichment card */}
+          {(company.location || company.companySize || company.revenueRange || company.yearsInBusiness != null || !!company.currentTechStack || !!company.socialMedia) && (
+            <div className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-5">
+              <h3 className="text-sm font-medium text-text-primary">Enrichment</h3>
+              <div className="flex flex-col gap-2">
+                {company.location && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Location</span>
+                    <span className="text-text-primary">{company.location}</span>
+                  </div>
+                )}
+                {company.companySize && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Size</span>
+                    <span className="text-text-primary capitalize">{company.companySize}</span>
+                  </div>
+                )}
+                {company.revenueRange && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Revenue</span>
+                    <span className="text-text-primary">{company.revenueRange}</span>
+                  </div>
+                )}
+                {company.yearsInBusiness != null && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-muted">Years</span>
+                    <span className="text-text-primary">{company.yearsInBusiness}</span>
+                  </div>
+                )}
+                {Array.isArray(company.currentTechStack) && (company.currentTechStack as string[]).length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-sm text-text-muted">Tech Stack</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(company.currentTechStack as string[]).map((tech) => (
+                        <span key={tech} className="px-2 py-0.5 text-[11px] bg-bg-active border border-border rounded text-text-secondary">
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Products card */}
           <div className="flex flex-col gap-3 bg-bg-card border border-border rounded-lg p-5">

@@ -20,6 +20,8 @@ const PREFIXES = {
   companyService: "cs",
   blueprintIndustry: "bi",
   blueprintNiche: "bn",
+  meeting: "mt",
+  meetingExtraction: "mx",
 } as const;
 
 type EntityType = keyof typeof PREFIXES;

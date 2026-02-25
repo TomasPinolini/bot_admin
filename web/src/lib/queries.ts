@@ -410,6 +410,74 @@ export async function getServices() {
     .orderBy(s.services.name);
 }
 
+// ── Meetings ───────────────────────────────────────────────
+
+export async function getMeetings() {
+  return db
+    .select({
+      id: s.meetings.id,
+      title: s.meetings.title,
+      meetingDate: s.meetings.meetingDate,
+      duration: s.meetings.duration,
+      status: s.meetings.status,
+      companyName: s.companies.name,
+    })
+    .from(s.meetings)
+    .leftJoin(s.companies, eq(s.meetings.companyId, s.companies.id))
+    .orderBy(desc(s.meetings.createdAt));
+}
+
+export async function getMeetingForReview(meetingId: string) {
+  const [meeting] = await db
+    .select()
+    .from(s.meetings)
+    .where(eq(s.meetings.id, meetingId))
+    .limit(1);
+
+  if (!meeting) return null;
+
+  const [extraction] = await db
+    .select()
+    .from(s.meetingExtractions)
+    .where(eq(s.meetingExtractions.meetingId, meetingId))
+    .limit(1);
+
+  const [allCompanies, allIndustries, allProducts, allServices] =
+    await Promise.all([
+      db
+        .select({ id: s.companies.id, name: s.companies.name })
+        .from(s.companies)
+        .where(isNull(s.companies.deletedAt))
+        .orderBy(s.companies.name),
+      db
+        .select({ id: s.industries.id, name: s.industries.name })
+        .from(s.industries)
+        .where(isNull(s.industries.deletedAt))
+        .orderBy(s.industries.name),
+      db
+        .select({ id: s.products.id, name: s.products.name })
+        .from(s.products)
+        .where(isNull(s.products.deletedAt))
+        .orderBy(s.products.name),
+      db
+        .select({ id: s.services.id, name: s.services.name })
+        .from(s.services)
+        .where(isNull(s.services.deletedAt))
+        .orderBy(s.services.name),
+    ]);
+
+  return {
+    meeting,
+    extraction: extraction ?? null,
+    catalog: {
+      companies: allCompanies,
+      industries: allIndustries,
+      products: allProducts,
+      services: allServices,
+    },
+  };
+}
+
 // ── Company Assigned IDs ────────────────────────────────────
 
 export async function getCompanyAssignedIds(

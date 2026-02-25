@@ -18,9 +18,45 @@ export const companies = pgTable("companies", {
   website: text("website"),
   notes: text("notes"),
   status: text("status").notNull().default("active"),
+  // Enrichment fields (Phase 1)
+  location: text("location"),
+  companySize: text("company_size"), // solo | small | medium | large | enterprise
+  revenueRange: text("revenue_range"),
+  yearsInBusiness: integer("years_in_business"),
+  currentTechStack: jsonb("current_tech_stack"), // string[]
+  socialMedia: jsonb("social_media"), // { linkedin?: string, twitter?: string, facebook?: string }
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+});
+
+// ── Meetings ───────────────────────────────────────────────
+
+export const meetings = pgTable("meetings", {
+  id: text("id").primaryKey(),
+  firefliesTranscriptId: text("fireflies_transcript_id").unique(),
+  title: text("title").notNull(),
+  meetingDate: timestamp("meeting_date", { withTimezone: true }),
+  duration: integer("duration"), // seconds
+  participants: jsonb("participants"), // string[]
+  aiSummary: text("ai_summary"),
+  status: text("status").notNull().default("pending_extraction"), // pending_extraction | extracted | ready_for_review | reviewed | extraction_failed | rejected
+  companyId: text("company_id").references(() => companies.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Meeting Extractions ────────────────────────────────────
+
+export const meetingExtractions = pgTable("meeting_extractions", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id").notNull().unique().references(() => meetings.id),
+  rawExtraction: jsonb("raw_extraction"), // Full Claude response
+  matchSuggestions: jsonb("match_suggestions"), // Entity matching results
+  confirmedData: jsonb("confirmed_data"), // User-confirmed data after review
+  status: text("status").notNull().default("pending"), // pending | extracted | ready_for_review | confirmed | rejected
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ── Tools ──────────────────────────────────────────────────

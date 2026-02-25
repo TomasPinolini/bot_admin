@@ -20,6 +20,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@clack/prompts": "^0.9.1",
     "@trigger.dev/sdk": "4.4.1",
     "chalk": "^5.4.1",

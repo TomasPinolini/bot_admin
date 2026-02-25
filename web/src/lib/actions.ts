@@ -5,6 +5,7 @@ import * as s from "./schema";
 import { eq, and } from "drizzle-orm";
 import { generateId } from "./ids";
 import { revalidatePath } from "next/cache";
+import { triggerTask } from "./trigger";
 
 // ── Companies ───────────────────────────────────────────────
 
@@ -39,6 +40,20 @@ export async function updateCompany(formData: FormData) {
   if (!name?.trim()) return { error: "Name is required" };
 
   try {
+    const techStackRaw = (formData.get("currentTechStack") as string)?.trim();
+    const techStack = techStackRaw
+      ? techStackRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      : null;
+
+    const socialLinkedin = (formData.get("socialLinkedin") as string)?.trim();
+    const socialTwitter = (formData.get("socialTwitter") as string)?.trim();
+    const socialMedia =
+      socialLinkedin || socialTwitter
+        ? { linkedin: socialLinkedin || undefined, twitter: socialTwitter || undefined }
+        : null;
+
+    const yearsRaw = (formData.get("yearsInBusiness") as string)?.trim();
+
     await db
       .update(s.companies)
       .set({
@@ -47,6 +62,12 @@ export async function updateCompany(formData: FormData) {
         contactEmail: (formData.get("contactEmail") as string)?.trim() || null,
         contactPhone: (formData.get("contactPhone") as string)?.trim() || null,
         website: (formData.get("website") as string)?.trim() || null,
+        location: (formData.get("location") as string)?.trim() || null,
+        companySize: (formData.get("companySize") as string)?.trim() || null,
+        revenueRange: (formData.get("revenueRange") as string)?.trim() || null,
+        yearsInBusiness: yearsRaw ? parseInt(yearsRaw, 10) : null,
+        currentTechStack: techStack,
+        socialMedia,
         updatedAt: new Date(),
       })
       .where(eq(s.companies.id, id));
@@ -341,6 +362,257 @@ export async function updateCompanyAssignments(formData: FormData) {
     revalidatePath(`/companies/${companyId}`);
     revalidatePath("/companies");
     return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { error: msg };
+  }
+}
+
+// ── Meetings: Retry Extraction ──────────────────────────────
+
+export async function retryExtraction(meetingId: string) {
+  try {
+    // Delete existing extraction if any
+    await db
+      .delete(s.meetingExtractions)
+      .where(eq(s.meetingExtractions.meetingId, meetingId));
+
+    // Reset meeting status
+    await db
+      .update(s.meetings)
+      .set({ status: "pending_extraction", updatedAt: new Date() })
+      .where(eq(s.meetings.id, meetingId));
+
+    // Trigger extraction task
+    await triggerTask("extract-meeting", { meetingId });
+
+    revalidatePath("/meetings");
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { error: msg };
+  }
+}
+
+// ── Meetings: Reject Extraction ─────────────────────────────
+
+export async function rejectExtraction(meetingId: string) {
+  try {
+    await db
+      .update(s.meetings)
+      .set({ status: "rejected", updatedAt: new Date() })
+      .where(eq(s.meetings.id, meetingId));
+
+    await db
+      .update(s.meetingExtractions)
+      .set({ status: "rejected", updatedAt: new Date() })
+      .where(eq(s.meetingExtractions.meetingId, meetingId));
+
+    revalidatePath("/meetings");
+    revalidatePath(`/meetings/${meetingId}/review`);
+    return { success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Unknown error";
+    return { error: msg };
+  }
+}
+
+// ── Meetings: Confirm Extraction ────────────────────────────
+
+interface ConfirmPayload {
+  meetingId: string;
+  companyAction: "link" | "create";
+  companyId?: string; // when linking
+  companyName?: string; // when creating
+  companyData: {
+    contactName?: string;
+    contactEmail?: string;
+    website?: string;
+    location?: string;
+    companySize?: string;
+    revenueRange?: string;
+    yearsInBusiness?: number;
+    currentTechStack?: string[];
+    socialMedia?: { linkedin?: string; twitter?: string; facebook?: string };
+  };
+  industryAction: "link" | "create";
+  industryId?: string;
+  industryName?: string;
+  products: Array<{ action: "link" | "create"; id?: string; name?: string }>;
+  services: Array<{ action: "link" | "create"; id?: string; name?: string }>;
+  confirmedDetails: {
+    painPoints: string[];
+    requirements: string[];
+    budget: string | null;
+    timeline: string | null;
+    urgency: string | null;
+    followUpItems: string[];
+  };
+}
+
+export async function confirmExtraction(payload: ConfirmPayload) {
+  try {
+    // Use a transaction for atomicity
+    const result = await db.transaction(async (tx) => {
+      // 1. Resolve company
+      let companyId: string;
+      if (payload.companyAction === "link" && payload.companyId) {
+        companyId = payload.companyId;
+        // Update company with enrichment data
+        await tx
+          .update(s.companies)
+          .set({
+            contactName: payload.companyData.contactName || undefined,
+            contactEmail: payload.companyData.contactEmail || undefined,
+            website: payload.companyData.website || undefined,
+            location: payload.companyData.location || undefined,
+            companySize: payload.companyData.companySize || undefined,
+            revenueRange: payload.companyData.revenueRange || undefined,
+            yearsInBusiness: payload.companyData.yearsInBusiness || undefined,
+            currentTechStack: payload.companyData.currentTechStack?.length
+              ? payload.companyData.currentTechStack
+              : undefined,
+            socialMedia: payload.companyData.socialMedia || undefined,
+            updatedAt: new Date(),
+          })
+          .where(eq(s.companies.id, companyId));
+      } else {
+        companyId = generateId("company");
+        await tx.insert(s.companies).values({
+          id: companyId,
+          name: payload.companyName!.trim(),
+          contactName: payload.companyData.contactName || null,
+          contactEmail: payload.companyData.contactEmail || null,
+          website: payload.companyData.website || null,
+          location: payload.companyData.location || null,
+          companySize: payload.companyData.companySize || null,
+          revenueRange: payload.companyData.revenueRange || null,
+          yearsInBusiness: payload.companyData.yearsInBusiness || null,
+          currentTechStack: payload.companyData.currentTechStack?.length
+            ? payload.companyData.currentTechStack
+            : null,
+          socialMedia: payload.companyData.socialMedia || null,
+        });
+      }
+
+      // 2. Resolve industry
+      let industryId: string | null = null;
+      if (payload.industryAction === "link" && payload.industryId) {
+        industryId = payload.industryId;
+      } else if (payload.industryName) {
+        industryId = generateId("industry");
+        await tx.insert(s.industries).values({
+          id: industryId,
+          name: payload.industryName.trim(),
+        });
+      }
+
+      // Link industry to company if resolved
+      if (industryId) {
+        await tx
+          .delete(s.companyIndustries)
+          .where(eq(s.companyIndustries.companyId, companyId));
+        await tx.insert(s.companyIndustries).values({
+          id: generateId("companyIndustry"),
+          companyId,
+          industryId,
+        });
+      }
+
+      // 3. Resolve products
+      for (const p of payload.products) {
+        let productId: string;
+        if (p.action === "link" && p.id) {
+          productId = p.id;
+        } else {
+          productId = generateId("product");
+          await tx.insert(s.products).values({
+            id: productId,
+            name: p.name!.trim(),
+          });
+        }
+        // Check if junction already exists
+        const existing = await tx
+          .select({ id: s.companyProducts.id })
+          .from(s.companyProducts)
+          .where(
+            and(
+              eq(s.companyProducts.companyId, companyId),
+              eq(s.companyProducts.productId, productId)
+            )
+          )
+          .limit(1);
+        if (existing.length === 0) {
+          await tx.insert(s.companyProducts).values({
+            id: generateId("companyProduct"),
+            companyId,
+            productId,
+          });
+        }
+      }
+
+      // 4. Resolve services
+      for (const sv of payload.services) {
+        let serviceId: string;
+        if (sv.action === "link" && sv.id) {
+          serviceId = sv.id;
+        } else {
+          serviceId = generateId("service");
+          await tx.insert(s.services).values({
+            id: serviceId,
+            name: sv.name!.trim(),
+          });
+        }
+        const existing = await tx
+          .select({ id: s.companyServices.id })
+          .from(s.companyServices)
+          .where(
+            and(
+              eq(s.companyServices.companyId, companyId),
+              eq(s.companyServices.serviceId, serviceId)
+            )
+          )
+          .limit(1);
+        if (existing.length === 0) {
+          await tx.insert(s.companyServices).values({
+            id: generateId("companyService"),
+            companyId,
+            serviceId,
+          });
+        }
+      }
+
+      // 5. Update meeting
+      await tx
+        .update(s.meetings)
+        .set({
+          companyId,
+          status: "reviewed",
+          updatedAt: new Date(),
+        })
+        .where(eq(s.meetings.id, payload.meetingId));
+
+      // 6. Update extraction
+      await tx
+        .update(s.meetingExtractions)
+        .set({
+          confirmedData: {
+            companyId,
+            industryId,
+            ...payload.confirmedDetails,
+          },
+          status: "confirmed",
+          updatedAt: new Date(),
+        })
+        .where(eq(s.meetingExtractions.meetingId, payload.meetingId));
+
+      return { companyId };
+    });
+
+    revalidatePath("/meetings");
+    revalidatePath("/companies");
+    revalidatePath("/");
+    return { success: true, companyId: result.companyId };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";
     return { error: msg };
